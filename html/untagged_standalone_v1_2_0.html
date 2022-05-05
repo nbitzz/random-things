@@ -1,0 +1,635 @@
+  <html>
+
+  <body>
+  
+    <style id="cStyle">
+    
+    </style>
+    
+    
+   <p class="system" id="text">
+     
+   </p>
+    
+  </body>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Big+Shoulders+Display&family=JetBrains+Mono:wght@300&display=swap');
+
+body {
+  background-color:#000000;
+}
+
+.system {
+  font-family:"Jet Brains Mono",monospace;
+  color:rgb(0,255,75)
+}
+
+.err {
+  font-family:"Jet Brains Mono",monospace;
+  color:rgb(255,100,100)
+}
+
+.norm {
+  font-family:"Jet Brains Mono",monospace;
+  color:rgb(255,255,255)
+}
+
+.warn {
+  font-family:"Jet Brains Mono",monospace;
+  color:rgb(255,255,0)
+}
+
+.choice {
+  font-family:"Jet Brains Mono",monospace;
+  color:rgb(255,150,0);
+  font-size:14px;
+  background-color:rgba(0,0,0,0);
+}
+
+.speaker {
+  color:rgb(255,255,255);
+    font-family:"Big Shoulders Display",cursive,sans-serif;
+ font-size:20px;
+}
+.context {
+  color:rgb(150,150,150);
+    font-family:"Big Shoulders Display",cursive,sans-serif;
+}
+
+.choiceBtn {
+  background-color:rgba(0,0,0,0);
+  border:none;
+  cursor:pointer;
+}
+</style>
+
+<script>
+var devmode = false
+
+var comp_tagc_notes = []
+
+var tmpDATA = {}
+
+const orderedTimeout = function(f,ms) {
+  if (ms > 0) {
+    setTimeout(f,ms)
+  } else {
+    f()
+  }
+}
+
+const write_tmp = function(k,v) {
+  tmpDATA[k] = v
+}
+
+const get_tmp = function(k) {
+  return tmpDATA[k]
+}
+
+const compile_tagc = function(tagc) {
+  comp_tagc_notes.push("BUILD START")
+  characters = core_chr
+  choices = {}
+  document.getElementById("cStyle").innerHTML = ""
+  let timeNow = Date.now()
+  let sections = tagc.split("\n\n")
+  let secType = {
+    ParagraphDialogue: function(name,parameters) {
+     if (!choices[name]) {
+       choices[name] = {}
+     }
+      choices[name].say = parameters
+    },
+    ParagraphOptions: function(name,parameters) {
+      if (!choices[name]) {
+       choices[name] = {}
+     }
+      choices[name].choices = parameters
+    },
+    LongDialogue: function(name,parameters) {
+      if (!choices[name]) {
+       choices[name] = {}
+     }
+      choices[name].IsLong = true // TODO: make this work lol.
+    },
+    ParagraphScript: function(name,parameters) {
+      if (!choices[name]) {
+       choices[name] = {}
+     }
+      choices[name].ccode = function() {
+        eval(parameters)
+      }
+    },
+    ParagraphSound: function(name,parameters) {
+      if (!choices[name]) {
+       choices[name] = {}
+     }
+      choices[name].sfx = parameters
+    },
+    MenuOption: function(name,parameters) {
+      if (!choices[name]) {
+       choices[name] = {}
+     }
+      choices[name].menuOpt = true
+    },
+    Menu: function(name,parameters) {
+      if (!choices[name]) {
+       choices[name] = {}
+     }
+      choices[name].isMenu = true
+    },
+    css: function(name, parameters){ document.getElementById("cStyle").innerHTML += name  
+    },
+    multistate:function(name,parameters) {
+    let trname = name.split(" ")[0]
+    let affected = name.split(" ")
+    affected.splice(0,1)
+    affected = affected.join(" ").split(",")
+    if (secType[trname]) {
+      affected.forEach((v) => {
+        secType[trname](v)
+        comp_tagc_notes.push(`OK: multistate | ${trname} (${v}) compiled`)
+      })
+    }
+    }, 
+    js: function(name, parameters){ 
+      setTimeout(function() {eval( parameters || name)},0)
+    },
+    ParagraphImage: function(name,parameters) {
+      if (!choices[name]) {
+       choices[name] = {}
+     }
+      choices[name].image = parameters
+    },
+    ParagraphImageSettings: function(name,parameters) {
+      if (!choices[name]) {
+       choices[name] = {}
+     }
+      choices[name].imageSettings = parameters
+    },
+    Character: function(name, parameters) {
+      // Generate style
+      let _style = `.character_${name} {
+      ${parameters}
+      }`
+      // Append to CSS
+      document.getElementById("cStyle").innerHTML += _style
+      
+      // Add to Characters
+      characters[name] = {style:`character_${name}`}
+    },
+    comment:function(name,parameters) {}
+  }
+  
+  sections.forEach((v,x) => {
+    
+    let type = v.split("\n")[0].split(" ")[0]
+    let name = v.split("\n")[0].split(" ")
+    name.splice(0,1)
+    name = name.join(" ")
+    
+    let parameters = v.split("\n")
+    parameters.splice(0,1)
+    parameters = parameters.join("\n")
+    
+    comp_tagc_notes.push(`Compiling ${type} (section ${x})`)
+    
+    if (secType[type]) {
+      secType[type](name,parameters)
+      comp_tagc_notes.push(`OK: Compiled ${type} (section ${x}) successfully`)
+    } else {
+      comp_tagc_notes.push(`ERR: Cannot compile ${type}: Type does not exist`)
+    }
+    
+  })
+  comp_tagc_notes.push(`COMPILED IN ${Date.now()-timeNow}ms`)
+}
+
+const decompile_tagc = function() {
+  let decompiled = []
+  
+  for (let [key,value] of Object.entries(choices)) {
+    decompiled.push(`ParagraphOptions ${key}\n${value.choices}`)
+    decompiled.push(`ParagraphDialogue ${key}\n${value.say}`)
+  }
+  
+  return decompiled.join("\n\n")
+}
+
+ var characters = {
+   input: {style:"system"},
+   err: {style:"err"},
+   norm: {style:"norm"},
+   warn: {style:"warn"},
+   narrator: {style:"speaker"},
+   context: {style:"context"},
+   choice: {custom:function(text,id,doaa) {
+     let maaaa = ""
+      if (devmode) {
+        maaaa = `<span class=\"context">${doaa.doN}</span>`
+      }
+      txt.innerHTML += `<button class="choiceBtn" id="${id}"><span class="choice">${text}</span></button>${maaaa}<br>`
+      setTimeout(function() {
+      let doa = doaa.do
+document.getElementById(id).onclick = function() {
+  if (!doaa.func) {
+  read(doa)
+  } else {
+    doaa.func()
+  }
+  console.log(id)
+}      },0) // JS needed me to do this. For some reason.
+      
+   }}
+ }
+
+ const core_chr = characters
+ 
+const txt = document.getElementById("text")
+
+const say = function(context,text,extra) {
+   let id = Math.random().toString()
+   if (characters[context]) {
+     if (characters[context].custom) {
+       characters[context].custom(text,id,extra)
+     } else {
+       txt.innerHTML += `<span class="${characters[context].style}">${text}</span><br>`
+     }
+   }
+}
+
+const old_say = function(context,text,doaa) {
+ 
+  switch(context) {
+    case "input":
+    txt.innerHTML += `${text}<br>`
+    break
+    case "narrator":
+      txt.innerHTML += `<span class="speaker">${text}</span><br>`
+      break
+      case "context":
+      txt.innerHTML += `<i><span class="context">${text}</span></i><br>`
+      break
+    case "choice":
+      console.log(id,doaa)
+      let maaaa = ""
+      if (devmode) {
+        maaaa = `<span class=\"context">${doaa.doN}</span>`
+      }
+      txt.innerHTML += `<button class="choiceBtn" id="${id}"><span class="choice">${text}</span></button>${maaaa}<br>`
+      setTimeout(function() {
+      let doa = doaa.do
+document.getElementById(id).onclick = function() {
+  if (!doaa.func) {
+  read(doa)
+  } else {
+    doaa.func()
+  }
+  console.log(id)
+}      },0) // JS needed me to do this. For some reason.
+      
+break
+  }
+}
+
+var choices = {
+  welcome:{say:"narrator:Welcome to unTAGged!",
+          choices:"Cool!:welcome"}
+}
+
+var DisplayProfiles = {
+  Default: {}
+}
+
+var dpC = "Default"
+
+const read = function(ob) {
+  
+  if (ob.ccode) {
+    setTimeout(ob.ccode,0)
+  }
+  if (ob.sfx) {
+    let audio = new Audio(ob.sfx);
+audio.play();
+  }
+  let dov = "> "
+  if (ob.isMenu) {
+    dov = ""
+  }
+  if (!ob.menuOpt) {
+    txt.innerHTML = ""
+if (ob.image) {
+  txt.innerHTML += `<img src="${ob.image}" style="width:100%;height:100%;object-fit:cover;left:0px;top:0px;position:fixed;z-index:-1;" id="t_img">`
+if (ob.imageSettings) {
+  let m = ob.imageSettings.split("\n")
+  m.forEach((v) => {
+    let prop = v.split(" ")[0]
+    let valu = v.split(" ")
+     valu.splice(0,1)
+    valu = valu.join(" ")
+    document.getElementById("t_img").style[prop] = valu 
+  })
+}
+}
+  let lines = ob.say.split("\n")
+  let dpp = DisplayProfiles[ob.DisplayProfile || "Default"] || DisplayProfiles["Default"]
+  let shhh = true // Temp fix. Choices duplicate on menus for some reason
+  let showopt = function() {
+    lines = ob.choices.split("\n")
+  lines.forEach((l,i) => {
+    let m = l.split(":")
+    console.log(m)
+    let n = m[0]
+    say("choice",dov+n,{"do":choices[m[1]],"doN":m[1]})
+  })
+  }
+  for (let i = 0; i < lines.length; i++) {
+    let m = lines[i].split(":")
+    let n = m[0]
+    m.splice(0,1)
+    let li = i
+    orderedTimeout(function() {
+    say(n,m.join(":"))
+    if (li == lines.length-1 && shhh) {
+      shhh = false
+      showopt()
+    }
+    },(dpp.lineWait || 0)*i)
+  }
+  
+  }
+}
+
+const open_editor = function(contentC) {
+  let win = window.open(``,"kpWindow"+Math.random().toString(),"width=400,height=250")
+  win.document.write(`<style>
+  
+  *{font-family:monospace;}
+.editor {resize:none;border:none;outline:none;
+position:fixed;
+left:0px;
+top:30px;
+width:100%;
+height:calc( 100% - 30px );
+background-color:#EEEEEE;
+}
+
+.wysiwyg {resize:none;border:none;outline:none;
+position:fixed;
+left:0px;
+top:30px;
+user-select:none;
+width:100%;
+height:calc( 100% - 30px );
+background-color:#rgba(0,0,0,0);
+}
+
+.mb {
+    border:none;
+    background-color:#AAAAAA
+}
+
+</style>
+  <button class="mb" id="comp">Compile</button>
+  <button class="mb"  id="menu">Devmenu</button>
+  
+<title id="title">unTAGged editor | Untitled</title>
+
+  <textarea class="editor" autocorrect="false" spellcheck="false" id="code">${contentC || `
+comment
+Welcome to the ctag development test window!
+To add a new section, add two line breaks inbetween, like you see in this demo.
+
+Character char_demo
+color: rgb(255,0,255);
+font-family:"Big Shoulders Display",cursive,sans-serif;
+font-size:20px;
+
+ParagraphDialogue demo
+char_demo:Hello!
+
+ParagraphOptions demo
+world!:demo`}</textarea>
+<!--<p class="wysiwyg" id="wysiwyg"></p>-->
+  `)
+   
+    // WYSIWYG implementation
+    let interval = setInterval(function() {
+      if (!win.closed) {
+        let wysiwyg = []
+        let colors = {
+          comment: {
+             define: "#DDDDDD",
+            name: "#DDDDDD",
+            statement: "#DDDDDD"
+          },
+          dfC: {
+            define: "#FF00FF",
+            name: "#000000",
+            statement: "#000000"
+          }
+        }
+        win.document.getElementById("code").value.split("\n\n").forEach((v) => {
+          let type = v.split("\n")[0].split(" ")[0]
+          let DAata = colors[type || "dfC"] || colors.dfC
+    let name = v.split("\n")[0].split(" ")
+    name.splice(0,1)
+    name = name.join(" ")
+    
+    let parameters = v.split("\n")
+    parameters.splice(0,1)
+    parameters = parameters.join("\n")
+          wysiwyg.push(`<span style="color:${DAata.define}">${type}</span> <span style="color:${DAata.name}">${name}</span><br><span style="color:${DAata.statement}">${parameters}</span>`)
+        })
+        //win.document.getElementById("wysiwyg").innerHTML = wysiwyg.join("\n\n")
+      } else {
+        console.log("Done")
+        clearInterval(interval)
+      }
+    },10)
+    
+ let cmpmm = JSON.parse(JSON.stringify(choices))   
+ win.document.getElementById("menu").onclick = devmenu
+    win.document.getElementById("comp").onclick = function() {
+      comp_tagc_notes = []
+      compile_tagc(win.document.getElementById("code").value)
+      txt.innerHTML = ""
+      let rrAAA = 0
+      comp_tagc_notes.forEach((m) => {
+        if (m.startsWith("OK:")) {
+        say("input",m)
+        }
+        else if (m.startsWith("ERR:")) {
+          say("err",m)
+          rrAAA++
+        } else {
+          say("norm",m)
+        }
+       
+      })
+       say("warn","<br>Error checks:")
+      let errors = 0
+    for (let [key,value] of Object.entries(choices)) {
+      let ex = {"true":"✔","false":"❌"}
+      let ex2 = {"true":"norm","false":"err"}
+      let maaaa = ex2[((!!value.choices) && (!!value.say)).toString()]
+      if (value.menuOpt) {
+        maaaa = "norm"
+      }
+          if (maaaa != "norm") {
+            errors++
+          }
+      say(maaaa,`${key}<br> <span style="font-size:12px;color:gray;">ParagraphOptions ${ex[(!!value.choices).toString()]}<br>ParagraphDialogue ${ex[(!!value.say).toString()]}</span>`)
+    }
+say("input",`<br>Summary:`)
+say("norm",`${errors} chk errors`)
+      say("norm",`${rrAAA} syntax errors`)
+      say("choice","<b>OK</b>",{func:devmenu})
+      if (errors != 0) {
+      say("choice","<b>Automatic Repair (TEST ONLY)</b>",{func:function() {
+        choices.autorep_devmenu_temp = {menuOpt:true,ccode:devmenu}
+        for (let [key,value] of Object.entries(choices)) {
+          if (!value.menuOpt) {
+            if (!value.say) {
+              value.say = `err:Fixed by Automatic Repair. This is paragraph ${key}.`
+            }
+            if (!value.choices) {
+              value.say += `\nerr: This section has no choices and was fixed by Automatic Repair. This is paragraph ${key}.`
+              value.choices = "Bring me to the Developer Menu:autorep_devmenu_temp"
+            }
+          }
+        }
+        devmenu()
+      }})
+      }
+    }
+    
+
+}
+
+const examples_dev = {
+  Paragraphs: `ParagraphOptions demo
+OK:demo
+
+ParagraphDialogue demo
+narrator:Hello world!`,
+  Character: `Character char_demo\ncolor:red
+
+comment Character allows you to add a "speaker", which accepts CSS and allows for custom text formatting.
+Other:
+
+ParagraphOptions demo
+OK:demo
+
+ParagraphDialogue demo
+char_demo:Hello world!`,
+  "Paragraphs, advanced": `comment CTAG Paragraphs: Advanced
+
+comment ParagraphScript allows you to run JS code when encountering a paragraph.
+
+ParagraphScript developerMenu
+devmenu()
+
+comment MenuOption allows you to create menus without having to use ParagraphScript to reload the previous page.
+
+MenuOption developerMenu
+
+comment Demo stuff:
+
+ParagraphDialogue demo_menu
+narrator: Hello world!
+
+ParagraphOptions demo_menu
+Return to developer menu:developerMenu`,
+  "Quality of life features": `comment The comment section, as seen here, allows for you to comment out areas, or just comment around a few sections.
+ParagraphOptions demo
+hello world:demo
+This won't work! ^
+
+comment the JS section runs code during compilation.
+
+js alert("Hello world!")`
+}
+
+const devmenu = function() {
+  txt.innerHTML = ""
+say("input","unTAGged Developer Menu")
+say("input",`It is ${new Date()}`)
+say("choice",`Developer mode (${devmode})`,{func:function() {
+  devmode = !devmode
+  devmenu()
+},doN:""})
+  say("choice",`General - Choice select`,{func:function() {
+  txt.innerHTML = ""
+    say("input","Choice select:")
+  for (let [key, val] of Object.entries(choices)) {
+    
+  say("choice",key,{do:val,doN:key})
+}
+},doN:""})
+  say("choice",`ctag - Development Testing`,{func:function() {
+  devmenu()
+    open_editor()
+  },doN:""})
+  say("choice",`ctag - Examples`,{func:function() {
+        txt.innerHTML = ""
+    say("narrator","<b>ctag examples</b>")
+    for (let [key,value] of Object.entries(examples_dev)) {
+      say("choice",key,{func:function() {
+        open_editor(value)
+      }})
+    }
+    say("choice","<b>Return to developer menu</b>",{func:devmenu})
+      },doN:""})
+  say("choice",`Debug - Game data`,{func:function() {
+        txt.innerHTML = ""
+    say("narrator","<b>Characters</b>")
+    for (let [key,value] of Object.entries(characters)) {
+      say(key,key,{func:function(){}})
+    }
+say("choice","<b>Return to developer menu</b>",{func:devmenu})
+  },doN:""})
+    
+  say("choice",`Debug - Error checking`, {func:function() {say("narrator","<b>Choice checks</b>")
+txt.innerHTML = ""
+    say("narrator","Required item checks:")
+    for (let [key,value] of Object.entries(choices)) {
+      let ex = {"true":"✔","false":"❌"}
+      let ex2 = {"true":"norm","false":"err"}
+      let maaaa = ex2[((!!value.choices) && (!!value.say)).toString()]
+      if (value.menuOpt) {
+        maaaa = "norm"
+      }
+      say(maaaa,`${key}<br> <span style="font-size:12px;color:gray;">ParagraphOptions ${ex[(!!value.choices).toString()]}<br>ParagraphDialogue ${ex[(!!value.say).toString()]}</span>`)
+    }
+                                                   say("narrator","Linked option checks:")
+    for (let [key,value] of Object.entries(choices)) {
+      let linkChk = []
+      let ex = {"true":"✔","false":"❌"}
+      if (value.choices) {
+        value.choices.split("\n").forEach((v) => {
+          let m = v.split(":")
+          let doL = true
+          if (!choices[m[1]]) {
+            doL = false
+          }
+          linkChk.push(`${m[1]}:${ex[doL.toString()]} (${m[0]})`)          
+        })
+      }
+      say("norm",`${key}<br> <span style="font-size:12px;color:gray;">${linkChk.join("<br>")}</span>`)
+    }
+    say("choice","<b>Return to developer menu</b>",{func:devmenu})
+      },doN:""})
+  say("choice",`Decompile game (Test)`,{func:function() {
+        txt.innerHTML = ""
+    say("narrator","<b>Decompiled (basic paragraphs only)</b>")
+    say("norm","<br>"+decompile_tagc().replaceAll("\n","<br>")+"<br>")
+    say("choice","<b>Return to developer menu</b>",{func:devmenu})
+      },doN:""})
+}
+
+devmenu();
+</script>
+  
+</html>

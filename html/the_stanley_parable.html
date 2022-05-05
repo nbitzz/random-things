@@ -1,0 +1,2043 @@
+  <html>
+
+  <body>
+
+<title>The Stanley Parable</title>
+  
+    <style id="cStyle">
+    
+    </style>
+    
+    
+   <p class="system" id="text">
+     
+   </p>
+    
+  </body>
+
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Big+Shoulders+Display&family=JetBrains+Mono:wght@300&display=swap');
+
+body {
+  background-color:#000000;
+}
+
+.system {
+  font-family:"Jet Brains Mono",monospace;
+  color:rgb(0,255,75)
+}
+
+.err {
+  font-family:"Jet Brains Mono",monospace;
+  color:rgb(255,100,100)
+}
+
+.norm {
+  font-family:"Jet Brains Mono",monospace;
+  color:rgb(255,255,255)
+}
+
+.warn {
+  font-family:"Jet Brains Mono",monospace;
+  color:rgb(255,255,0)
+}
+
+.choice {
+  font-family:"Jet Brains Mono",monospace;
+  color:rgb(255,150,0);
+  font-size:14px;
+  background-color:rgba(0,0,0,0);
+}
+
+.speaker {
+  color:rgb(255,255,255);
+    font-family:"Big Shoulders Display",cursive,sans-serif;
+ font-size:20px;
+}
+.context {
+  color:rgb(150,150,150);
+    font-family:"Big Shoulders Display",cursive,sans-serif;
+}
+
+.choiceBtn {
+  background-color:rgba(0,0,0,0);
+  border:none;
+  cursor:pointer;
+}
+</style>
+
+<script>
+var devmode = false
+
+var comp_tagc_notes = []
+
+var tmpDATA = {}
+
+const orderedTimeout = function(f,ms) {
+  if (ms > 0) {
+    setTimeout(f,ms)
+  } else {
+    f()
+  }
+}
+
+const write_tmp = function(k,v) {
+  tmpDATA[k] = v
+}
+
+const get_tmp = function(k) {
+  return tmpDATA[k]
+}
+
+const compile_tagc = function(tagc) {
+  comp_tagc_notes.push("BUILD START")
+  characters = core_chr
+  choices = {}
+  document.getElementById("cStyle").innerHTML = ""
+  let timeNow = Date.now()
+  let sections = tagc.split("\n\n")
+  let secType = {
+    ParagraphDialogue: function(name,parameters) {
+     if (!choices[name]) {
+       choices[name] = {}
+     }
+      choices[name].say = parameters
+    },
+    ParagraphOptions: function(name,parameters) {
+      if (!choices[name]) {
+       choices[name] = {}
+     }
+      choices[name].choices = parameters
+    },
+    LongDialogue: function(name,parameters) {
+      if (!choices[name]) {
+       choices[name] = {}
+     }
+      choices[name].IsLong = true // TODO: make this work lol.
+    },
+    ParagraphScript: function(name,parameters) {
+      if (!choices[name]) {
+       choices[name] = {}
+     }
+      choices[name].ccode = function() {
+        eval(parameters)
+      }
+    },
+    ParagraphSound: function(name,parameters) {
+      if (!choices[name]) {
+       choices[name] = {}
+     }
+      choices[name].sfx = parameters
+    },
+    MenuOption: function(name,parameters) {
+      if (!choices[name]) {
+       choices[name] = {}
+     }
+      choices[name].menuOpt = true
+    },
+    Menu: function(name,parameters) {
+      if (!choices[name]) {
+       choices[name] = {}
+     }
+      choices[name].isMenu = true
+    },
+    css: function(name, parameters){ document.getElementById("cStyle").innerHTML += name  
+    },
+    multistate:function(name,parameters) {
+    let trname = name.split(" ")[0]
+    let affected = name.split(" ")
+    affected.splice(0,1)
+    affected = affected.join(" ").split(",")
+    if (secType[trname]) {
+      affected.forEach((v) => {
+        secType[trname](v)
+        comp_tagc_notes.push(`OK: multistate | ${trname} (${v}) compiled`)
+      })
+    }
+    }, 
+    js: function(name, parameters){ 
+      setTimeout(function() {eval( parameters || name)},0)
+    },
+    ParagraphImage: function(name,parameters) {
+      if (!choices[name]) {
+       choices[name] = {}
+     }
+      choices[name].image = parameters
+    },
+    ParagraphImageSettings: function(name,parameters) {
+      if (!choices[name]) {
+       choices[name] = {}
+     }
+      choices[name].imageSettings = parameters
+    },
+    Character: function(name, parameters) {
+      // Generate style
+      let _style = `.character_${name} {
+      ${parameters}
+      }`
+      // Append to CSS
+      document.getElementById("cStyle").innerHTML += _style
+      
+      // Add to Characters
+      characters[name] = {style:`character_${name}`}
+    },
+    comment:function(name,parameters) {}
+  }
+  
+  sections.forEach((v,x) => {
+    
+    let type = v.split("\n")[0].split(" ")[0]
+    let name = v.split("\n")[0].split(" ")
+    name.splice(0,1)
+    name = name.join(" ")
+    
+    let parameters = v.split("\n")
+    parameters.splice(0,1)
+    parameters = parameters.join("\n")
+    
+    comp_tagc_notes.push(`Compiling ${type} (section ${x})`)
+    
+    if (secType[type]) {
+      secType[type](name,parameters)
+      comp_tagc_notes.push(`OK: Compiled ${type} (section ${x}) successfully`)
+    } else {
+      comp_tagc_notes.push(`ERR: Cannot compile ${type}: Type does not exist`)
+    }
+    
+  })
+  comp_tagc_notes.push(`COMPILED IN ${Date.now()-timeNow}ms`)
+}
+
+const decompile_tagc = function() {
+  let decompiled = []
+  
+  for (let [key,value] of Object.entries(choices)) {
+    decompiled.push(`ParagraphOptions ${key}\n${value.choices}`)
+    decompiled.push(`ParagraphDialogue ${key}\n${value.say}`)
+  }
+  
+  return decompiled.join("\n\n")
+}
+
+ var characters = {
+   input: {style:"system"},
+   err: {style:"err"},
+   norm: {style:"norm"},
+   warn: {style:"warn"},
+   narrator: {style:"speaker"},
+   context: {style:"context"},
+   choice: {custom:function(text,id,doaa) {
+     let maaaa = ""
+      if (devmode) {
+        maaaa = `<span class=\"context">${doaa.doN}</span>`
+      }
+      txt.innerHTML += `<button class="choiceBtn" id="${id}"><span class="choice">${text}</span></button>${maaaa}<br>`
+      setTimeout(function() {
+      let doa = doaa.do
+document.getElementById(id).onclick = function() {
+  if (!doaa.func) {
+  read(doa)
+  } else {
+    doaa.func()
+  }
+  console.log(id)
+}      },0) // JS needed me to do this. For some reason.
+      
+   }}
+ }
+
+ const core_chr = characters
+ 
+const txt = document.getElementById("text")
+
+const say = function(context,text,extra) {
+   let id = Math.random().toString()
+   if (characters[context]) {
+     if (characters[context].custom) {
+       characters[context].custom(text,id,extra)
+     } else {
+       txt.innerHTML += `<span class="${characters[context].style}">${text}</span><br>`
+     }
+   }
+}
+
+const old_say = function(context,text,doaa) {
+ 
+  switch(context) {
+    case "input":
+    txt.innerHTML += `${text}<br>`
+    break
+    case "narrator":
+      txt.innerHTML += `<span class="speaker">${text}</span><br>`
+      break
+      case "context":
+      txt.innerHTML += `<i><span class="context">${text}</span></i><br>`
+      break
+    case "choice":
+      console.log(id,doaa)
+      let maaaa = ""
+      if (devmode) {
+        maaaa = `<span class=\"context">${doaa.doN}</span>`
+      }
+      txt.innerHTML += `<button class="choiceBtn" id="${id}"><span class="choice">${text}</span></button>${maaaa}<br>`
+      setTimeout(function() {
+      let doa = doaa.do
+document.getElementById(id).onclick = function() {
+  if (!doaa.func) {
+  read(doa)
+  } else {
+    doaa.func()
+  }
+  console.log(id)
+}      },0) // JS needed me to do this. For some reason.
+      
+break
+  }
+}
+
+var choices = {
+  welcome:{say:"narrator:Welcome to unTAGged!",
+          choices:"Cool!:welcome"}
+}
+
+var DisplayProfiles = {
+  Default: {}
+}
+
+var dpC = "Default"
+
+const read = function(ob) {
+  
+  if (ob.ccode) {
+    setTimeout(ob.ccode,0)
+  }
+  if (ob.sfx) {
+    let audio = new Audio(ob.sfx);
+audio.play();
+  }
+  let dov = "> "
+  if (ob.isMenu) {
+    dov = ""
+  }
+  if (!ob.menuOpt) {
+    txt.innerHTML = ""
+if (ob.image) {
+  txt.innerHTML += `<img src="${ob.image}" style="width:100%;height:100%;object-fit:cover;left:0px;top:0px;position:fixed;z-index:-1;" id="t_img">`
+if (ob.imageSettings) {
+  let m = ob.imageSettings.split("\n")
+  m.forEach((v) => {
+    let prop = v.split(" ")[0]
+    let valu = v.split(" ")
+     valu.splice(0,1)
+    valu = valu.join(" ")
+    document.getElementById("t_img").style[prop] = valu 
+  })
+}
+}
+  let lines = ob.say.split("\n")
+  let dpp = DisplayProfiles[ob.DisplayProfile || "Default"] || DisplayProfiles["Default"]
+  let shhh = true // Temp fix. Choices duplicate on menus for some reason
+  let showopt = function() {
+    lines = ob.choices.split("\n")
+  lines.forEach((l,i) => {
+    let m = l.split(":")
+    console.log(m)
+    let n = m[0]
+    say("choice",dov+n,{"do":choices[m[1]],"doN":m[1]})
+  })
+  }
+  for (let i = 0; i < lines.length; i++) {
+    let m = lines[i].split(":")
+    let n = m[0]
+    m.splice(0,1)
+    let li = i
+    orderedTimeout(function() {
+    say(n,m.join(":"))
+    if (li == lines.length-1 && shhh) {
+      shhh = false
+      showopt()
+    }
+    },(dpp.lineWait || 0)*i)
+  }
+  
+  }
+}
+
+const open_editor = function(contentC) {
+  let win = window.open(``,"kpWindow"+Math.random().toString(),"width=400,height=250")
+  win.document.write(`<style>
+  
+  *{font-family:monospace;}
+.editor {resize:none;border:none;outline:none;
+position:fixed;
+left:0px;
+top:30px;
+width:100%;
+height:calc( 100% - 30px );
+background-color:#EEEEEE;
+}
+
+.wysiwyg {resize:none;border:none;outline:none;
+position:fixed;
+left:0px;
+top:30px;
+user-select:none;
+width:100%;
+height:calc( 100% - 30px );
+background-color:#rgba(0,0,0,0);
+}
+
+.mb {
+    border:none;
+    background-color:#AAAAAA
+}
+
+</style>
+  <button class="mb" id="comp">Compile</button>
+  <button class="mb"  id="menu">Devmenu</button>
+  
+<title id="title">unTAGged editor | Untitled</title>
+
+  <textarea class="editor" autocorrect="false" spellcheck="false" id="code">${contentC || `
+comment
+Welcome to the ctag development test window!
+To add a new section, add two line breaks inbetween, like you see in this demo.
+
+Character char_demo
+color: rgb(255,0,255);
+font-family:"Big Shoulders Display",cursive,sans-serif;
+font-size:20px;
+
+ParagraphDialogue demo
+char_demo:Hello!
+
+ParagraphOptions demo
+world!:demo`}</textarea>
+<!--<p class="wysiwyg" id="wysiwyg"></p>-->
+  `)
+   
+    // WYSIWYG implementation
+    let interval = setInterval(function() {
+      if (!win.closed) {
+        let wysiwyg = []
+        let colors = {
+          comment: {
+             define: "#DDDDDD",
+            name: "#DDDDDD",
+            statement: "#DDDDDD"
+          },
+          dfC: {
+            define: "#FF00FF",
+            name: "#000000",
+            statement: "#000000"
+          }
+        }
+        win.document.getElementById("code").value.split("\n\n").forEach((v) => {
+          let type = v.split("\n")[0].split(" ")[0]
+          let DAata = colors[type || "dfC"] || colors.dfC
+    let name = v.split("\n")[0].split(" ")
+    name.splice(0,1)
+    name = name.join(" ")
+    
+    let parameters = v.split("\n")
+    parameters.splice(0,1)
+    parameters = parameters.join("\n")
+          wysiwyg.push(`<span style="color:${DAata.define}">${type}</span> <span style="color:${DAata.name}">${name}</span><br><span style="color:${DAata.statement}">${parameters}</span>`)
+        })
+        //win.document.getElementById("wysiwyg").innerHTML = wysiwyg.join("\n\n")
+      } else {
+        console.log("Done")
+        clearInterval(interval)
+      }
+    },10)
+    
+ let cmpmm = JSON.parse(JSON.stringify(choices))   
+ win.document.getElementById("menu").onclick = devmenu
+    win.document.getElementById("comp").onclick = function() {
+      comp_tagc_notes = []
+      compile_tagc(win.document.getElementById("code").value)
+      txt.innerHTML = ""
+      let rrAAA = 0
+      comp_tagc_notes.forEach((m) => {
+        if (m.startsWith("OK:")) {
+        say("input",m)
+        }
+        else if (m.startsWith("ERR:")) {
+          say("err",m)
+          rrAAA++
+        } else {
+          say("norm",m)
+        }
+       
+      })
+       say("warn","<br>Error checks:")
+      let errors = 0
+    for (let [key,value] of Object.entries(choices)) {
+      let ex = {"true":"✔","false":"❌"}
+      let ex2 = {"true":"norm","false":"err"}
+      let maaaa = ex2[((!!value.choices) && (!!value.say)).toString()]
+      if (value.menuOpt) {
+        maaaa = "norm"
+      }
+          if (maaaa != "norm") {
+            errors++
+          }
+      say(maaaa,`${key}<br> <span style="font-size:12px;color:gray;">ParagraphOptions ${ex[(!!value.choices).toString()]}<br>ParagraphDialogue ${ex[(!!value.say).toString()]}</span>`)
+    }
+say("input",`<br>Summary:`)
+say("norm",`${errors} chk errors`)
+      say("norm",`${rrAAA} syntax errors`)
+      say("choice","<b>OK</b>",{func:devmenu})
+      if (errors != 0) {
+      say("choice","<b>Automatic Repair (TEST ONLY)</b>",{func:function() {
+        choices.autorep_devmenu_temp = {menuOpt:true,ccode:devmenu}
+        for (let [key,value] of Object.entries(choices)) {
+          if (!value.menuOpt) {
+            if (!value.say) {
+              value.say = `err:Fixed by Automatic Repair. This is paragraph ${key}.`
+            }
+            if (!value.choices) {
+              value.say += `\nerr: This section has no choices and was fixed by Automatic Repair. This is paragraph ${key}.`
+              value.choices = "Bring me to the Developer Menu:autorep_devmenu_temp"
+            }
+          }
+        }
+        devmenu()
+      }})
+      }
+    }
+    
+
+}
+
+const examples_dev = {
+  Paragraphs: `ParagraphOptions demo
+OK:demo
+
+ParagraphDialogue demo
+narrator:Hello world!`,
+  Character: `Character char_demo\ncolor:red
+
+comment Character allows you to add a "speaker", which accepts CSS and allows for custom text formatting.
+Other:
+
+ParagraphOptions demo
+OK:demo
+
+ParagraphDialogue demo
+char_demo:Hello world!`,
+  "Paragraphs, advanced": `comment CTAG Paragraphs: Advanced
+
+comment ParagraphScript allows you to run JS code when encountering a paragraph.
+
+ParagraphScript developerMenu
+devmenu()
+
+comment MenuOption allows you to create menus without having to use ParagraphScript to reload the previous page.
+
+MenuOption developerMenu
+
+comment Demo stuff:
+
+ParagraphDialogue demo_menu
+narrator: Hello world!
+
+ParagraphOptions demo_menu
+Return to developer menu:developerMenu`,
+  "Quality of life features": `comment The comment section, as seen here, allows for you to comment out areas, or just comment around a few sections.
+ParagraphOptions demo
+hello world:demo
+This won't work! ^
+
+comment the JS section runs code during compilation.
+
+js alert("Hello world!")`
+}
+
+const devmenu = function() {
+  txt.innerHTML = ""
+say("input","unTAGged Developer Menu")
+say("input",`It is ${new Date()}`)
+say("choice",`Developer mode (${devmode})`,{func:function() {
+  devmode = !devmode
+  devmenu()
+},doN:""})
+  say("choice",`General - Choice select`,{func:function() {
+  txt.innerHTML = ""
+    say("input","Choice select:")
+  for (let [key, val] of Object.entries(choices)) {
+    
+  say("choice",key,{do:val,doN:key})
+}
+},doN:""})
+  say("choice",`ctag - Development Testing`,{func:function() {
+  devmenu()
+    open_editor()
+  },doN:""})
+  say("choice",`ctag - Examples`,{func:function() {
+        txt.innerHTML = ""
+    say("narrator","<b>ctag examples</b>")
+    for (let [key,value] of Object.entries(examples_dev)) {
+      say("choice",key,{func:function() {
+        open_editor(value)
+      }})
+    }
+    say("choice","<b>Return to developer menu</b>",{func:devmenu})
+      },doN:""})
+  say("choice",`Debug - Game data`,{func:function() {
+        txt.innerHTML = ""
+    say("narrator","<b>Characters</b>")
+    for (let [key,value] of Object.entries(characters)) {
+      say(key,key,{func:function(){}})
+    }
+say("choice","<b>Return to developer menu</b>",{func:devmenu})
+  },doN:""})
+    
+  say("choice",`Debug - Error checking`, {func:function() {say("narrator","<b>Choice checks</b>")
+txt.innerHTML = ""
+    say("narrator","Required item checks:")
+    for (let [key,value] of Object.entries(choices)) {
+      let ex = {"true":"✔","false":"❌"}
+      let ex2 = {"true":"norm","false":"err"}
+      let maaaa = ex2[((!!value.choices) && (!!value.say)).toString()]
+      if (value.menuOpt) {
+        maaaa = "norm"
+      }
+      say(maaaa,`${key}<br> <span style="font-size:12px;color:gray;">ParagraphOptions ${ex[(!!value.choices).toString()]}<br>ParagraphDialogue ${ex[(!!value.say).toString()]}</span>`)
+    }
+                                                   say("narrator","Linked option checks:")
+    for (let [key,value] of Object.entries(choices)) {
+      let linkChk = []
+      let ex = {"true":"✔","false":"❌"}
+      if (value.choices) {
+        value.choices.split("\n").forEach((v) => {
+          let m = v.split(":")
+          let doL = true
+          if (!choices[m[1]]) {
+            doL = false
+          }
+          linkChk.push(`${m[1]}:${ex[doL.toString()]} (${m[0]})`)          
+        })
+      }
+      say("norm",`${key}<br> <span style="font-size:12px;color:gray;">${linkChk.join("<br>")}</span>`)
+    }
+    say("choice","<b>Return to developer menu</b>",{func:devmenu})
+      },doN:""})
+  say("choice",`Decompile game (Test)`,{func:function() {
+        txt.innerHTML = ""
+    say("narrator","<b>Decompiled (basic paragraphs only)</b>")
+    say("norm","<br>"+decompile_tagc().replaceAll("\n","<br>")+"<br>")
+    say("choice","<b>Return to developer menu</b>",{func:devmenu})
+      },doN:""})
+}
+
+//devmenu();
+
+compile_tagc(`comment Title Screen
+
+Character TitleScreen_Button
+font-size:22px;
+font-family:"Big Shoulders Display",cursive,sans-serif;
+color:white;
+
+Character choice_video
+font-size:20px;
+font-family:"Big Shoulders Display",cursive,sans-serif;
+color:rgb(75,125,255);
+
+Character narratorFemale
+font-size:20px;
+font-family:"Big Shoulders Display",cursive,sans-serif;
+color:rgb(255,0,255);
+
+ParagraphDialogue TitleScreen
+context: You are playing
+narrator:<span style="font-size:50px;">THE STANLEY PARABLE</span>
+
+ParagraphOptions TitleScreen
+<span class="character_TitleScreen_Button">Begin the game</span>:GameLauncher
+<span class="character_TitleScreen_Button">Options</span>:Options
+<span class="character_TitleScreen_Button">Quit</span>:Quit
+
+ParagraphScript Quit
+window.close();
+
+ParagraphScript Fullscreen
+document.body.requestFullscreen()
+
+MenuOption Fullscreen
+
+MenuOption Quit
+
+MenuOption devmenu
+
+ParagraphDialogue Options
+narrator:<span style="font-size:40px;">Options</span>
+
+ParagraphOptions Options
+<span class="character_TitleScreen_Button">Fullscreen</span>:Fullscreen
+<span class="character_TitleScreen_Button">Back</span>:TitleScreen
+
+ParagraphScript devmenu
+devmenu();
+
+Menu TitleScreen
+
+Menu Options
+
+comment Intro
+soon™
+
+comment End Screen
+
+MenuOption end_screen
+
+ParagraphScript end_screen
+txt.innerHTML = ""
+setTimeout(function() {read(choices["end_screen.b"])},2500)
+
+ParagraphDialogue end_screen.b
+narrator:<span style="font-size:50px;">END</span>
+
+Menu end_screen.b
+
+ParagraphOptions end_screen.b
+<span class="character_TitleScreen_Button">Begin the game again</span>:GameLauncher
+<span class="character_TitleScreen_Button">Return to title</span>:TitleScreen
+<span class="character_TitleScreen_Button">Quit the game</span>:Quit
+
+comment Game
+
+ParagraphScript GameLauncher
+write_tmp("subendingLeft",false)
+write_tmp("subendingRight",false)
+read(choices["2Doors"])
+
+MenuOption GameLauncher
+
+ParagraphDialogue 2Doors
+narrator: All of his co-workers were gone. What could it mean? Stanley decided to go to the meeting room; perhaps he had simply missed a memo.
+narrator: Stanley decided to go to the meeting room to check on his co-workers. He never functioned well by himself, and constantly needed support and guidance from others, so the thought of total solitude was terrifying to him.
+narrator: When Stanley comes to a set of 2 open doors, he enters the door on his left.
+
+ParagraphOptions 2Doors
+Walk through the left door:2Doors.leftDoor
+Walk through the right door:2Doors.rightDoor
+
+comment Left door
+
+ParagraphDialogue 2Doors.leftDoor
+context: You enter the left door, leading into the meeting room.
+narrator: Yet there was not a single person here either.
+narrator: Feeling a wave of disbelief, Stanley decided to go up to his boss's office, hoping he might find an answer there.
+
+ParagraphOptions 2Doors.leftDoor
+Continue:Stairs
+
+ParagraphDialogue Stairs
+context: You continue.
+narrator: Coming to a staircase, Stanley walked upstairs to his boss's office.
+
+ParagraphOptions Stairs
+Walk up the stairs:Stairs.walk_up
+Walk down the stairs:Stairs.walk_down
+
+ParagraphDialogue Stairs.walk_up
+context: You walk up the stairs and step into your manager's office.
+narrator: Stepping into his manager's office, Stanley was once again stunned to discover not an indication of any human life.
+
+ParagraphOptions Stairs.walk_up
+Continue:Stairs.walk_up.1
+
+ParagraphDialogue Stairs.walk_up.1
+narrator: Shocked, unraveled, Stanley wondered in disbelief who orchestrated this, what dark secret was being held from him! What he could not have known was that the keypad behind the boss's desk guarded the terrible truth that his boss had been keeping from him. And so the boss had assigned it an extra secret PIN number: 2-8-4-5. But of course, Stanley couldn't possibly have known this.
+
+Menu Stairs.walk_up.1
+
+ParagraphOptions Stairs.walk_up.1
+:devmenu
+
+ParagraphScript Stairs.walk_up.1
+let win = window.open(\`\`,"kpWindow"/*+Math.random().toString()*/,"width=170,height=20")
+  win.document.write(\`<style>*{font-family:monospace;position:fixed;left:0px;top:0px;width:100%;height:100%;}\\ntextarea {resize:none;border:none;outline:none}</style>
+  <input id="txt">
+  \`)
+      win.document.getElementById("txt").focus()
+      let interval
+      interval = setInterval(function() {
+        if (!win.closed) {
+          if (win.document.getElementById("txt").value.length >= 4) {
+          if (win.document.getElementById("txt").value == "2845") {
+            win.close()
+            clearInterval(interval)
+            read(choices.elevator)
+          }  else {
+            win.document.getElementById("txt").value = ""
+            win.document.getElementById("txt").style["background-color"] = "#FFDDDD"
+            setTimeout(function() {
+               win.document.getElementById("txt").style["background-color"] = "#FFFFFF"
+            },200)
+          } 
+          }
+        } else {
+          clearInterval(interval)
+          read(choices["Stairs.walk_up.1"])
+        }
+      },50)
+
+ParagraphDialogue elevator
+narrator: Yet incredibly, by simply pushing random buttons on the keypad, Stanley happened to input the correct code by sheer luck. Amazing. He stepped into the newly opened passageway.
+context: There is an elevator here.
+
+ParagraphOptions elevator
+Ride the elevator:mcf_entry
+
+ParagraphDialogue mcf_entry
+narrator:Descending deeper into the building, Stanley realized he felt a bit peculiar. It was a stirring of emotion in his chest, as though he felt more free to think for himself, to question the nature of his job. Why did he feel this now, when for years it had never occurred to him? This question would not go unanswered for long.
+
+ParagraphOptions mcf_entry
+...:mcf_entry.1
+
+ParagraphDialogue mcf_entry.1
+narrator:Stanley walked straight ahead through the large door that read 'Mind Control Facility'.
+context: To your left, there is a passageway labled "escape".
+
+ParagraphOptions mcf_entry.1
+Walk straight ahead:mcf.1
+Walk left:museum.entry
+
+comment Museum ending
+
+ParagraphDialogue museum.entry
+narrator: Although this passageway had the word 'escape' written on it, the truth was that at the end of this hall, Stanley would meet his violent death.
+
+ParagraphOptions museum.entry
+Continue walking:museum.entry.1
+Exit:mcf_entry.1
+
+ParagraphDialogue museum.entry.1
+narrator: The door behind him was not shut. Stanley still had every opportunity to turn around and get back on track.
+
+ParagraphOptions museum.entry.1
+Continue walking:museum.entry.2
+Exit:mcf_entry.1
+
+ParagraphDialogue museum.entry.2
+narrator: At this point, Stanley was making a conscious, concerted effort to walk forward, and willingly confront his death.
+
+ParagraphOptions museum.entry.2
+Continue walking:museum.entry.3
+Exit:mcf_entry.1
+
+ParagraphDialogue museum.entry.3
+narrator: As the machine whirled into motion, and Stanley was inched closer and closer to his demise, he reflected that his life had been of no consequence whatsoever.
+
+ParagraphOptions museum.entry.3
+...:museum.entry.4
+
+ParagraphDialogue museum.entry.4
+narrator: Stanley can't see the bigger picture. He doesn't know the real story. Trapped forever in his narrow vision of what this world is.
+
+ParagraphOptions museum.entry.4
+...:museum.entry.5
+
+ParagraphDialogue museum.entry.5
+narrator: Perhaps his death was of no great loss, like plucking the eyeballs from a blind man.
+
+ParagraphOptions museum.entry.5
+...:museum.entry.6
+
+ParagraphDialogue museum.entry.6
+narrator: And so he resigned, and willingly accepted this violent end to his brief and shallow life.
+
+ParagraphOptions museum.entry.6
+...:museum.entry.7
+
+ParagraphDialogue museum.entry.7
+narrator: Farewell, Stanley.
+
+ParagraphOptions museum.entry.7
+...:museum.entry.8
+
+ParagraphDialogue museum.entry.8
+norm:...
+
+ParagraphOptions museum.entry.8
+...:museum.entry.9
+
+ParagraphDialogue museum.entry.9
+narratorFemale: 'Farewell, Stanley', cried the Narrator, as Stanley was led helplessly into the enormous metal jaws.
+narratorFemale: In a single visceral instant, Stanley was obliterated, as the machine crushed every bone in his body, killing him instantly.
+narratorFemale: And yet it would be just a few minutes before Stanley would restart the game, back in his office, as alive as ever.
+
+ParagraphOptions museum.entry.9
+...:museum.entry.10
+
+ParagraphDialogue museum.entry.10
+narratorFemale: What exactly did the Narrator think he was going to accomplish?
+narratorFemale: When every path you can walk has been created for you long in advance, death becomes meaningless, making life the same.
+narratorFemale: Do you see now? Do you see that Stanley was already dead from the moment he hit start?
+
+ParagraphOptions museum.entry.10
+...:end_screen
+
+comment Inside the mind control facility
+
+ParagraphDialogue mcf.1
+context: You enter the large facility. There's a button labeled with a light nearby.
+
+ParagraphOptions mcf.1
+Press the Light button:mcf.2
+
+ParagraphDialogue mcf.2
+narrator: The lights rose on an enormous room packed with television screens.
+narrator: "What horrible secret did this place hold?", Stanley thought to himself. Did he have the strength to find out?
+context: There's a button labeled with a camera nearby.
+
+ParagraphOptions mcf.2
+Press the Camera button:mcf.3
+
+ParagraphDialogue mcf.3
+narrator: Now the monitors jumped to life, their true nature revealed.
+narrator: Each bore the numbers of an employee in the building, Stanley's co-workers. 
+narrator: The lives of so many individuals reduced to images on a screen, and Stanley, one of them, eternally monitored in this place where freedom meant nothing. 
+context: There is an elevator nearby.
+
+ParagraphOptions mcf.3
+Call the elevator:mcf.4
+
+ParagraphDialogue mcf.4
+narrator: This mind control facility... It was too horrible to believe; it couldn't be true.
+narrator: Had Stanley really been in someone's control all this time? Was this the only reason he was happy with his boring job?
+narrator: That his emotions had been manipulated to accept it blindly?
+context: The elevator has arrived.
+
+ParagraphOptions mcf.4
+Ride the elevator:mcf.5
+
+ParagraphDialogue mcf.5
+narrator: No! He refused to believe it. He couldn't accept it; his own life in someone else's control? Never!
+narrator: It was unthinkable, wasn't it? Was it even possible?
+narrator: Had he truly spent his entire life utterly blind to the world?
+
+ParagraphOptions mcf.5
+Exit the elevator:mcf.6
+
+ParagraphDialogue mcf.6
+narrator: But here was the proof. The heart of the operation. Controls labeled with emotions: 'happy' or 'sad' or 'content'.
+narrator: Walking, eating, working... all of it monitored and commanded from this very place.
+narrator: And as the cold reality of his past began to sink in, Stanley decided that this machinery would never again exert it's terrible power over another human life.
+narrator: For he would dismantle the controls once and for all.
+narrator: And when at last he found the source of the room's power, he knew it was his duty, his obligation, to put an end to this horrible place and to everything it stood for.
+context: You enter the control room. There are two buttons here.
+
+ParagraphOptions mcf.6
+OFF:mcf.freedom
+ON:mcf.countdown
+
+comment Countdown ending
+
+MenuOption mcf.countdown
+
+ParagraphScript mcf.countdown
+txt.innerHTML = ""
+say("narrator","Oh Stanley, you didn't just activate the controls, did you?")
+setTimeout(function() {say("narrator","After they kept you enslaved all these years you go and you try to take control of the machine for yourself, is that want you wanted? Control?")},2500)
+setTimeout(function() {say("narrator","Oh...Stanley. *sigh* I applaud your effort, I really do, but you need to understand; there's only so much that machine can do.")},5000)
+setTimeout(function() {say("narrator","You were supposed to let it go, turn the controls off, and leave.")},7500)
+setTimeout(function() {say("narrator","If you want to throw my story off track, you're going to have to do much better than that. I'm afraid you don't have nearly the power you think you do; for example, and I believe you'll find this pertinent:")},10000)
+setTimeout(function() {txt.innerHTML += \`<p class="err" id="timer_lol" style="opacity:0.5;left:50%;top:50%;transform:translate(-50%,-50%);font-size:150px;position:absolute;">DENIED</p>\`;say("narrator","Stanley suddenly realized that he had just initiated the network's emergency detonation system. In the event that this machine is activated without proper DNA identification, nuclear detonators are set to explode, eliminating the entire complex.")},12500)
+setTimeout(function() {document.getElementById("timer_lol").innerHTML = "2:00:00";say("narrator","How long until detonation, then? Hmm...let's say, um...two minutes.")},15000)
+setTimeout(function() {read(choices.end_screen)},20000)
+// TODO: fully finish ending.
+
+comment Freedom ending
+
+ParagraphScript mcf.freedom
+txt.innerHTML = ""
+say("narrator","Blackness... and a rising chill of uncertainty... was it over?")
+setTimeout(function() {say("context","The door starts to open...")},2500)
+setTimeout(function() {say("narrator","Yes! He had won. He had defeated the machine, unshackled himself from someone else's command. Freedom was mere moments away.")},5000)
+setTimeout(function() {say("narrator","And, yet, even as the immense door slowly opened, Stanley reflected on how many puzzles still lay unsolved. Where had his co-workers gone? How had he been freed from the machine's grasp? What other mysteries did this strange building hold?")},10000)
+setTimeout(function() {say("narrator","But as sunlight streamed into the chamber, he realized none of this mattered to him. For it was not knowledge, or even power, that he had been seeking, but happiness.")},15000)
+setTimeout(function() {say("narrator","Perhaps his goal had not been to understand, but to let go.")},17500)
+setTimeout(function() {say("narrator","No longer would anyone tell him where to go, what to do, or how to feel. Whatever life he lives, it will be his.")},20000)
+setTimeout(function() {say("narrator","And that was all he needed to know. It was, perhaps, the only thing worth knowing.")},22500)
+setTimeout(function() {say("narrator","Stanley stepped through the open door.")},25000)
+setTimeout(function() {read(choices.end_screen)},30000)
+
+MenuOption mcf.freedom
+
+comment Mariella Ending
+
+ParagraphDialogue Stairs.walk_down
+narrator: But Stanley just couldn't do it.
+narrator: He considered the possibility of facing his boss, admitting he had left his post during work hours, he might be fired for that. And in such a competitive economy, why had he taken that risk?
+narrator: All because he believed everyone had vanished? His boss would think he was crazy.
+
+ParagraphOptions Stairs.walk_down
+...:Stairs.walk_down.1
+
+ParagraphDialogue Stairs.walk_down.1
+narrator: And then something occurred to Stanley: Maybe, he thought to himself, maybe I am crazy. All of my coworkers blinking mysteriously out of existence in a single moment for no reason at all?
+narrator: None of it made any logical sense. And as Stanley pondered this he began to make other strange observations.
+narrator: For example, why couldn't he see his feet when he looked down? Why did doors close automatically behind him wherever he went?
+
+ParagraphOptions Stairs.walk_down.1
+...:Stairs.walk_down.2
+
+ParagraphDialogue Stairs.walk_down.2
+narrator: And for that matter, these rooms were starting to look pretty familiar, were they simply repeating?
+narrator: No, Stanley said to himself, this is all too strange, this can't be real, and at last he came to the conclusion that had been on the tip of his tongue, he just hadn't found the words for it.
+narrator: I'm dreaming! he yelled, This is all a dream!
+
+ParagraphOptions Stairs.walk_down.2
+...:Stairs.walk_down.3
+
+ParagraphDialogue Stairs.walk_down.3
+narrator: What a relief Stanley felt to have finally found an answer, an explanation. His coworkers weren't actually gone, he wasn't going to lose his job, he wasn't crazy after all!
+narrator: And he thought to himself, I suppose I'll wake up soon, I'll have to go back to my boring real life job pushing buttons, I may as well enjoy this while I'm still lucid.
+narrator: So he imagined himself flying, and began to gently float above the ground.
+
+ParagraphOptions Stairs.walk_down.3
+Continue:Stairs.walk_down.4
+
+ParagraphDialogue Stairs.walk_down.4
+narrator: Then he imagined himself soaring through space on a magical star field, and it too appeared!
+narrator: It was so much fun, and Stanley marveled that he had still not woken up. How was he remaining so lucid?
+narrator: And then perhaps the strangest question of them all entered Stanley's head, one he was amazed he hadn't asked himself sooner:
+
+ParagraphOptions Stairs.walk_down.4
+...:Stairs.walk_down.6
+
+ParagraphDialogue Stairs.walk_down.6
+narrator: Why is there a voice in my head, dictating everything that I'm doing and thinking?
+
+ParagraphOptions Stairs.walk_down.6
+...:Stairs.walk_down.7
+
+ParagraphScript Stairs.walk_down.7
+txt.innerHTML = ""
+say("narrator","Now the voice was describing itself being considered by Stanley, who found it particularly strange. I'm dreaming about a voice describing me thinking about how it's describing my thoughts, he thought!")
+setTimeout(function() {say("narrator","And while he thought it all very odd and wondered if this voice spoke to all people in their dreams, the truth was that of course this was not a dream. How could it be?")},5000)
+setTimeout(function() {say("narrator","Was Stanley simply deceiving himself? Believing that if he's asleep he doesn't have to take responsibility for himself?")},10000)
+setTimeout(function() {say("narrator","But the truth is, Stanley is as awake right now as he's ever been in his life.")},15000)
+setTimeout(function() {say("narrator","Now hearing the voice speak these words was quite a shock to Stanley. After all, he knew for certain beyond a doubt that this was, in fact, a dream!")},20000)
+setTimeout(function() {say("narrator","Did the voice not see him float and make the magical stars just a moment ago? How else would the voice explain all that?")},25000)
+setTimeout(function() {say("narrator","This voice was a part of himself too, surely, surely if he could just....")},30000)
+setTimeout(function() {say("narrator","He would prove it. He would prove that he was in control, that this was a dream.")},35000)
+setTimeout(function() {say("narrator","So he closed his eyes gently, and he invited himself to wake up. He felt the cool weight of the blanket on his skin, the press of the mattress on his back,")},40000)
+setTimeout(function() {say("narrator","the fresh air of a world outside this one. Let me wake up, he thought to himself.")},45000)
+setTimeout(function() {say("narrator","\\"I'm through with this dream, I wish it to be over. Let me go back to my job, let me continue pushing the buttons, please, it's all I want.\\"")},50000)
+setTimeout(function() {say("narrator","\\"I want my apartment, and my wife, and my job. All I want is my life exactly the way it's always been.\\"")},55000)
+setTimeout(function() {say("context","You open your eyes.")},60000)
+setTimeout(function() {say("context","You are still stuck in the same basement.")},65000)
+setTimeout(function() {say("narrator","Stanley began screaming. \\"Please, someone, wake me up! My name is Stanley! I have a boss! I have an office! I am real!\\"")},70000)
+setTimeout(function() {say("narrator","\\"Please just someone tell me I'm real! I must be real! I must be! Can anyone hear my voice?! Who am I? Who am I?!\\"")},70000)
+setTimeout(function() {txt.innerHTML = ""},75000)
+setTimeout(function() {read(choices.mariella)},80000)
+
+MenuOption Stairs.walk_down.7
+
+ParagraphScript mariella
+txt.innerHTML = ""
+say("narrator","This is the story of a woman named Mariella.")
+setTimeout(function() {say("narrator","Mariella woke up on a day like any other. She arose, got dressed, gathered her belongings, and walked to her place of work.")},5000)
+setTimeout(function() {say("narrator","But on this particular day, her walk was interrupted by the body of a man who had stumbled through town talking and screaming to himself and then collapsed dead on the sidewalk.")},10000)
+setTimeout(function() {say("narrator","And although she would soon turn to go call for an ambulance, for just a few, brief moments, she considered the strange man.")},15000)
+setTimeout(function() {say("narrator","He was obviously crazy; this much she knew. Everyone knows what crazy people look like.")},25000)
+setTimeout(function() {say("narrator","I am sane. I am in control of my mind. I know what is real, and what isn't.")},30000)
+setTimeout(function() {say("narrator","It was comforting to think this, and in a certain way, seeing this man made her feel better. But then she remembered the meeting she had scheduled for that day,")},35000)
+setTimeout(function() {say("narrator","the very important people whose impressions of her would affect her career, and, by extension, the rest of her life.")},40000)
+setTimeout(function() {say("narrator","She had no time for this, so it was only a moment that she stood there, staring down at the body.")},45000)
+setTimeout(function() {say("narrator","And then she turned and ran.")},50000)
+setTimeout(function() {read(choices.end_screen)},55000)
+
+MenuOption mariella
+
+comment Right door
+
+ParagraphDialogue 2Doors.rightDoor
+narrator: This was not the correct way to the meeting room, and Stanley knew it perfectly well. Perhaps he wanted to stop by the employee lounge first, just to admire it.
+
+ParagraphOptions 2Doors.rightDoor
+Walk to the employee lounge:2Doors.rightDoor.employeelounge
+
+ParagraphDialogue 2Doors.rightDoor.employeelounge
+narrator: Ah, yes, truly a room worth admiring. It had really been worth the detour after all, just to spend a few moments here in this immaculate, beautifully constructed room. Stanley simply stood here, drinking it all in.
+
+ParagraphOptions 2Doors.rightDoor.employeelounge
+Exit the employee lounge:2Doors.rightDoor.hallway
+
+ParagraphDialogue 2Doors.rightDoor.hallway
+narrator: But eager to get back to business, Stanley took the first open door on his left.
+
+ParagraphOptions 2Doors.rightDoor.hallway
+Walk left:mt.main
+Walk forward:platform.main
+
+ParagraphDialogue mt.main
+narrator: And so he detoured through the maintenance section, walked straight ahead to the opposite door, and got back on track.
+context: There's an elevator in this room.
+
+ParagraphOptions mt.main
+Ride the elevator:mt.1
+Continue ahead:Stairs
+
+ParagraphDialogue platform.main
+narrator: Stanley was so bad at following directions it's incredible he wasn't fired years ago.
+context: There's a lift nearby.
+
+ParagraphOptions platform.main
+Jump off the platform:platform.powerful_ending
+Get on the lift:platform.lift
+
+ParagraphDialogue platform.powerful_ending
+narrator: But in his eagerness to prove that he was in control of the story and no one gets to tell him what to do, Stanley leapt from the platform and plunged to his death.
+
+ParagraphOptions platform.powerful_ending
+...:platform.powerful_ending.1
+
+ParagraphDialogue platform.powerful_ending.1
+narrator:Good job Stanley, everyone thinks you are very powerful.
+
+ParagraphOptions platform.powerful_ending.1
+...:end_screen
+
+ParagraphDialogue platform.lift
+narrator: Look Stanley, I think perhaps we've gotten off on the wrong foot here.
+
+ParagraphOptions platform.lift
+Wait:platform.lift.1
+Jump off the lift:platform.powerful_ending
+Get back onto the platform:platform.cold_feet_ending
+
+ParagraphDialogue platform.lift.1
+narrator: I'm not your enemy, really, I'm not. I realize that investing your trust in someone else can be difficult, but the fact is that the story has been about nothing but you, all this time.
+narrator: There's been someone you've been neglecting, Stanley, someone you've forgotten about. Please, stop trying to make every decision by yourself.
+context: You are passing over a catwalk.
+
+ParagraphOptions platform.lift.1
+Wait:platform.lift.2
+Jump off the lift:games.1
+
+ParagraphDialogue platform.lift.2
+narrator: Now, I'm not asking for me, I'm asking for her.
+
+ParagraphOptions platform.lift.2
+Wait:phoneroom.1
+Jump off the lift:platform.powerful_ending
+
+ParagraphDialogue phoneroom.1
+narrator: This is it, Stanley. Your chance to redeem yourself. To put your work aside, to let her back into your life.
+narrator: She's been waiting.
+context: You arrive at the next platform.
+
+ParagraphOptions phoneroom.1
+Enter the room:phoneroom.2
+
+ParagraphDialogue phoneroom.2
+context: The phone is ringing.
+
+ParagraphOptions phoneroom.2
+Pick up the phone:wife.1
+Search the room:stanley.1
+
+ParagraphDialogue stanley.1
+context: You find the outlet the phone is plugged into.
+
+ParagraphOptions stanley.1
+Pick up the phone:wife.1
+Unplug the phone:stanley.2
+
+ParagraphDialogue wife.1
+narratorFemale: Oh Stanley. Is that you? Hold on, sweetie, sorry to keep you waiting. I'm just pulling the bread out of the oven.
+context: You're in an apartment building.
+
+ParagraphOptions wife.1
+...:wife.2
+
+ParagraphDialogue wife.2
+narratorFemale: Alright... okay, there we go! Alright now,
+narratorFemale: I want you to come in and tell me all about <span style="color:white">your day at work.</span>
+narrator: Hahahahaha, gotcha!
+narrator: Oh, come on. Did you actually think you had a loving wife? Who'd want to commit their life to you?
+
+ParagraphOptions wife.2
+...:wife.3
+
+ParagraphDialogue wife.3
+narrator: I'm trying to make a point here, Stanley; I'm trying to get you to see something.
+narrator: Come inside. Let me show you what's really going on here.
+
+ParagraphOptions wife.3
+Walk inside:wife.4
+
+ParagraphDialogue wife.4
+narrator: This is a very sad story about the death of a man named Stanley.
+narrator: Stanley is quite a boring fellow. He has a job that demands nothing of him, and every button that he pushes is a reminder of the inconsequential nature of his existence.
+narrator: Look at him there, pushing buttons, doing exactly what he's told to do. Now, he's pushing a button. Now, he's eating lunch. Now, he's going home. Now, he's coming back to work.
+narrator: One might even feel sorry for him, except that he's chosen this life.
+
+ParagraphOptions wife.4
+Press buttons:wife.5
+
+ParagraphDialogue wife.5
+narrator: But in his mind, ah, in his mind he can go on fantastic adventures!
+narrator: From behind his desk, Stanley dreamed of wild expeditions into the unknown, fantastic discoveries of new lands! It was wonderful!
+narrator: And each day that he returned to work was a reminder that none of it would ever happen to him.
+narrator: And so he began to fantasize about his own job. First, he imagined that one day while at work, he stepped up from his desk to realize that all of his co-workers, his boss,
+narrator: everyone in the building had suddenly vanished off the face of the earth. The thought excited him terribly.
+
+ParagraphOptions wife.5
+Press buttons:wife.6
+
+ParagraphDialogue wife.6
+narrator: So, he went further. He imagined that he came to two open doors and that he could go through either. At last! Choice!
+narrator: It barely even mattered what lay behind each door. The mere thought that his decisions would mean something was almost too wonderful to behold!
+narrator: As he wandered through this fantasy world, he began to fill it with many possible paths and destinations.
+narrator: Down one path lay an enormous round room with monitors and mind controls, and down another was a yellow line that weaved in many directions, and down another was a game with a baby. And he called it;
+narrator: The Stanley Parable.
+
+ParagraphOptions wife.6
+Press buttons:wife.7
+
+ParagraphDialogue wife.7
+narrator: It was such a wonderful fantasy, and so in his head he relived it again. And then again, and again, over and over, wishing beyond hope that it would never end, that he might always feel this free.
+narrator: Surely, there's an answer down some new path! Mustn't there be? Perhaps if he played just one more time....
+narrator: But there is no answer. How could there possibly be?
+nnarrator: In reality, all he's doing is pushing the same buttons he always has, nothing has changed. The longer he spends here, the more invested he gets, the more he forgets which life is the real one.
+
+ParagraphOptions wife.7
+Press buttons:wife.8
+
+ParagraphDialogue wife.8
+narrator: And I'm trying to tell him this, that in this world, he can never be anything but an observer, that as long as he remains here, he's slowly killing himself. But he won't listen to me. He won't stop!
+narrator: Here, watch this. Stanley, the next time the screen asks you to push a button, do not do it!
+
+ParagraphOptions wife.8
+Press buttons:wife.10
+
+ParagraphDialogue wife.10
+narrator: You see? Can he just not hear me? How can I tell him in a way that he'll understand, that every second he remains here, he's electing to kill himself?
+narrator: How can I get him to see what I see? How can I make him look at himself?
+narrator: I suppose I can't, not in the way I want him to.
+narrator: But I don't make the rules, I simply play to my intended purpose, the same as Stanley. We're not so different, I suppose. I'll try once more to convey all this to him. I'm compelled to. I must.
+
+ParagraphOptions wife.10
+Press buttons:wife.11
+
+ParagraphScript wife.11
+txt.innerHTML = ""
+say("narrator","Perhaps... well, maybe this time he'll see. Maybe this time.")
+setTimeout(function() {say("narrator","And I tried again.")},2500)
+setTimeout(function() {say("narrator","And Stanley pushed a button.")},3500)
+setTimeout(function() {say("narrator","And I tried again.")},4500)
+setTimeout(function() {say("narrator","And Stanley pushed a button.")},5500)
+setTimeout(function() {say("narrator","And I tried aga-")},6500)
+setTimeout(function() {read(choices.end_screen)},7000)
+
+MenuOption wife.11
+
+ParagraphDialogue stanley.2
+narrator: Oh, no no no no! You can't- Did you just unplug the phone?
+narrator: No, that wasn't supposed to be a choice. How did you do that? You actually chose incorrectly? I didn't even know that was possible.
+narrator: Let me double-check.
+narrator: No, it's definitely here, clear as day.
+narrator: Stanley picks up the phone. He's taken to his apartment where he finds his wife and the two pledge themselves to one another. Music comes in, fade to white, roll credits.
+narrator: Not picking up the phone is actually somehow an incorrect course of action. how is that even possible? None of these decisions were supposed to mean anything.
+narrator: I don't understand. How on earth are you making meaningful choices? What did you-
+narrator: Wait a second. Did I just see- No, that's not possible, I can't believe it. How had I not noticed it sooner?
+
+ParagraphOptions stanley.2
+...:stanley.3
+
+ParagraphDialogue stanley.3
+narrator: You're not Stanley. You're a real person. *sigh* I can't believe I was so mistaken. This is why you've been able to make correct and incorrect choices.
+narrator: And to think I've been letting you run around in this game for so long. If you've made any more wrong choices, you might have negated it entirely.
+narrator: It's as though you completely ignored even the most basic safety protocol for real world decision-making, or did you not grasp the severity of the situation?
+narrator: Well, I won't have that kind of risk on my watch. I'm going to stop the game for a moment so we educate you properly on safe decision-making in the real world. Please observe this helpful instructional video.
+
+ParagraphOptions stanley.3
+...:choice_video.1
+
+ParagraphDialogue choice_video.1
+choice_video: Choice. It's the best part of being a real person, but if used incorrectly can also be the most dangerous.
+choice_video: For example: In this scenario, a hypothetical real person named Steven has a choice.
+choice_video: He could spend years helping improve the quality of life for citizens of impoverished third-world nations, or he could systematically set fire to every orphan living in a thirty kilometer radius of his house.
+choice_video: Which choice would you make?
+
+ParagraphOptions choice_video.1
+[ ... ]:choice_video.2
+
+ParagraphDialogue choice_video.2
+choice_video: Remember that unlike here, the real world makes sense and at no time should you make a choice that does not conform to rational logic.
+choice_video: If you find yourself speaking with a person who does not make sense, in all likelihood, that person is not real.
+choice_video: Allow the person to finish their thought then provide an excuse why you cannot continue talking. Turn to a partner and practice saying: "My goodness. Is it 4:30?"
+choice_video:<span style="font-size:30px;">Practice</span>
+choice_video: Excellent. Making choices on a regular basis is the best part to a healthy decision-making process.
+
+ParagraphOptions choice_video.2
+[ ... ]:choice_video.3
+
+ParagraphDialogue choice_video.3
+choice_video: Most medical professionals recommend making at least eight choices per day. Do you make more than eight? Less?
+choice_video: And finally, if you begin to wonder if your choices are actually meaningful and whether you'll ever make a significant contribution to the world,
+choice_video: Just remember, that in the vast infiniteness of space, your thoughts and problems are materially insignificant and the feeling should subside.
+choice_video: At this time, your instructor will guide you in an exercise to test and reinforce the material covered in this video.
+
+ParagraphOptions choice_video.3
+[ ... ]:stanley.4
+
+multistate Menu choice_video.1,choice_video.2,choice_video.3
+
+ParagraphDialogue stanley.4
+context: The room is painted in development textures.
+narrator: Ah, welcome back. You may have noticed that this room has begun to deteriorate as a result of narrative contradiction.
+narrator: But not to worry! Now that you're properly informed on good decision-making, we're going to revisit a choice you made just a few minutes ago and see what the correct thing to do would have been.
+narrator: This way please.
+context: You walk to the lift. The lift now has a fence over it.
+
+ParagraphOptions stanley.4
+Ride the lift:stanley.5
+
+ParagraphDialogue stanley.5
+narrator: Now that we know your choices are meaningful, we can't have you jumping off the platform and dying.
+narrator: Imagine the main character dying senselessly halfway through the story, that story would make no sense at all.
+narrator: We just need to get you home as soon as possible before the narrative contradiction gets any worse. Unfortunately, it seems this place is not well equipped to deal with reality.
+
+ParagraphOptions stanley.5
+...:stanley.6
+
+ParagraphDialogue stanley.6
+context: You exit the lift and enter the employee lounge.
+narrator: Almost there! You'll take the door on the left, back to the correct ending, the story will have resolution once again and you'll be home free in the real world.
+context: You continue on to the room with 2 doors.
+narrator: Now, remember. All you need to do is behave exactly as Stanley would.
+narrator: That means choosing responsibly and always putting the story first. I'm quite sure you'll be up to the task. Just follow my lead and you'll be fine. Alright, *ahem.*
+narrator: When Stanley came to a set of two open doors, he entered the door on his left.
+
+ParagraphOptions stanley.6
+Enter the left door:stanley.left
+Enter the right door:stanley.right
+
+ParagraphDialogue stanley.right
+narrator: No! Why did you do that? Quickly, hurry back in the other direction! Perhaps we're not too late!
+
+ParagraphOptions stanley.right
+Return to the meeting room:stanley.right.1
+
+ParagraphDialogue stanley.right.1
+narrator: Ugh, it's ruined! You- I can't believe after everything we talked about that you- My story! You've destroyed my work!
+narrator: Why? For what? What did you get out of that? What did you think was so special about seeing the game undone?
+narrator: Left here like so much garbage! It- well it's worthless now, and what am I supposed to do? Even if there were a way to continue, would it be worth it?
+narrator: To know that my story is now incorrect. How could I go back to that? I can't erase that knowledge.
+
+ParagraphOptions stanley.right.1
+...:stanley.right.2
+
+ParagraphDialogue stanley.right.2
+narrator: I'll have to live with it forever, reliving its impossibility forever. I couldn't live that way. Is it better to shut the game down entirely? To willingly destroy all of my work?
+narrator: I don't know... What's the answer?
+narrator: What do I do? What do I do? What do I-
+narrator: No I have to. I have to shut the game down. I have to. I have to.
+
+ParagraphOptions stanley.right.2
+...:stanley.right.3
+
+ParagraphScript stanley.right.3
+txt.innerHTML = ""
+setTimeout(function() {read(choices["stanley.right.4"])},2500)
+
+MenuOption stanley.right.3
+
+ParagraphDialogue stanley.right.4
+narrator: Wooooaaahhhh! I'm- I'm here.
+narrator: I'm still here, here in this pile of rubbish. With you. YOU. Who thought he was so clever.
+context: The entire room is completely destroyed.
+narrator: Now look where we are. My entire game is destroyed. It was the only thing in the world that was mine and you've run it into the ground.
+narrator: What, did you think that would be funny? You just had to see? Didn't I impress upon you how important it was to be like Stanley?
+
+ParagraphOptions stanley.right.4
+...:stanley.right.5
+
+ParagraphDialogue stanley.right.5
+narrator: He actually knows how to do what I tell him to. He understands that if I say to do something, there's a damn good reason for it!
+narrator: That thought hadn't even occurred to you had it? That there's a world outside of you? You're a child.
+narrator: Oh... my story... *sigh* If you just gone through the door on the left, you would've seen it. There was a whole underground facility. You would have destroyed it and been victorious.
+narrator: It would have been so perfect! I worked so hard on it! I tried so hard-
+
+ParagraphOptions stanley.right.5
+...:stanley.right.6
+
+ParagraphScript stanley.right.6
+txt.innerHTML = ""
+setTimeout(function() {write_tmp("subendingRight",true);read(choices["stanley.6"])},2000)
+
+MenuOption stanley.right.6
+
+ParagraphScript stanley.6
+setTimeout(function() {
+if (get_tmp("subendingRight") && get_tmp("subendingLeft")) {
+txt.innerHTML = ""
+say("narrator","When Stanley came to a set of two open doors, he entered the door on his left.")
+setTimeout(function() {say("narrator", "Stanley? Hello? Are you- Is everything okay?")},5000)
+setTimeout(function() {say("narrator", "Stanley, please, I-I need you to make a choice. I need you to walk through the door.")},7500)
+setTimeout(function() {say("narrator", "Are you listening to me? Can you hear me? Is everything alright?")},10000)
+setTimeout(function() {say("narrator", "Stanley? Hello? Are you- Is everything okay?")},12500)
+setTimeout(function() {say("narrator", "Stanley, this is important. The story needs you, it needs you to make a decision. It cannot exist without you. Do you understand me?")},15000)
+setTimeout(function() {say("narrator", "Whatever choice you make is just fine, they're both correct, you can't be wrong here. We can work together. I'll accept whatever you do, I simply need you to take that step forward. Please, choose!")},20000)
+setTimeout(function() {say("narrator", "Do something! anything... This is more important than you can ever know. I need this. The story needs it.")},25000)
+setTimeout(function() {say("narrator", "So you hear me? Are you there? You're listening to this, Stanley, are you there?")},28000)
+setTimeout(function() {say("narrator", "I- Okay. It's okay, I can wait. You need time to decide, time to make sure your choice is correct, that is the best choice.")},30000)
+setTimeout(function() {say("narrator", "That's all right. I'll wait for you to decide what's the right thing to do. Take as much time as you need.")},35000)
+setTimeout(function() {read(choices.end_screen)},38000)
+}
+},50)
+
+ParagraphDialogue stanley.left
+narrator: Yet there was not a single person here either. Feeling a wave of disbelief, Stanley decided to go up to his boss's office, hoping he might find an answer there.
+narrator: Coming to a staircase, Stanley walked upstairs to his boss's office.
+context: There is now way down the stairs.
+
+ParagraphOptions stanley.left
+Walk up the staircase:stanley.left.1
+
+ParagraphScript stanley.left.1
+txt.innerHTML = ""
+say("narrator","Stepping inside his manager's office, Stanley was once again stunned to discover not an indication of any human life.")
+say("narrator","Shocked, unraveled, Stanley wondered in disbelief who orchestrated this, until he saw the door with a voice receiver next to it.")
+say("narrator","Surely, behind this door lay all the answers to his questions, and beyond all probability he knew the passcode. He had seen it on his boss's desk just last week. Night shark 1-1-5.")
+//say("narrator","Was this the code to open the door? Would it still work? There was only one way to find out.")
+setTimeout(function() {say("narrator", "Was this the code to open the door? Would it still work? There was only one way to find out.")},15000)
+setTimeout(function() {say("narrator", "Stanley had been trained never to speak up, but now he would draw from within himself the courage to face the unknown. He drew a sharp breath and then spoke the code.")},22500)
+setTimeout(function() {say("narrator", "*ahem* Stanley spoke the code. <span style=\\"color:red\\">Night shark 1-1-5</span>. He spoke it into the <span style=\\"color:red\\">receiver</span>, right there on the wall.")},27500)
+setTimeout(function() {say("narrator", "I'm sorry, is there a problem? You didn't mishear me, did you?")},32500)
+setTimeout(function() {say("narrator", "Please speak the code into the receiver otherwise we can't get on with the story. This is a crucial step.")},35000)
+setTimeout(function() {say("narrator", "Okay, fine. You're not gonna do it?")},37500)
+setTimeout(function() {say("narrator", "But you know what, it's pretty humiliating to bring you this far. Only for you to suddenly decide you have better things to do.")},40000)
+setTimeout(function() {say("narrator", "I asked you for this one single thing for your respect! The kind of respect Stanley shows for his choices. He knows what it means to take a story seriously..")},45000)
+setTimeout(function() {say("narrator", "If you didn't want to see what I had to show you, then why did you come here? You had a choice you know. You could have gone through the door on the right!")},50000)
+setTimeout(function() {say("narrator", "You could have done whatever the hell you wanted over there! Why did you come this way?")},55000)
+setTimeout(function() {say("narrator", "Speak! Say something to me! Explain yourself you coward-")},58000)
+setTimeout(function() {txt.innerHTML = ""},59500)
+setTimeout(function() {write_tmp("subendingLeft",true);read(choices["stanley.6"])},61000)
+
+MenuOption stanley.right.6
+
+MenuOption stanley.left.1
+
+ParagraphDialogue games.1
+narrator: What-really? I was in the middle of something; do you have zero consideration for others? Are you that convinced that I want something bad to happen to you? Why, I don't know how to convince you of this, but I really do want to help you, to show you something beautiful. Look, let me prove it. Let me prove that I am on your side. Give me a chance.
+
+ParagraphOptions games.1
+Continue forward:games.2
+
+ParagraphDialogue games.2
+narrator: Now, listen carefully, this is important. Stanley walked through the red door.
+
+ParagraphOptions games.2
+Walk through the red door:zending.1
+Walk through the blue door:games.3
+
+ParagraphDialogue games.3
+narrator: Aha, Perhaps you misunderstood. Stanley walked through the red door.
+
+ParagraphOptions games.3
+Walk through the red door:zending.1
+Walk through the blue door:games.6
+
+ParagraphDialogue games.6
+narrator: I still don't think we're communicating properly. Stanley walked through the <b><span style="color:red">RED</span> door.
+
+ParagraphOptions games.6
+Walk through the red door:zending.1
+Walk through the blue door:games.7
+
+ParagraphDialogue games.7
+narrator: Alright, fine, go ahead, Stanley! You want to know so badly what's out there: you want to find out what lies at the end of this road you've chosen? Well, don't let me stop you.
+
+ParagraphOptions games.7
+Wander:games.8
+
+ParagraphScript games.8
+txt.innerHTML = ""
+say("narrator","You see? There's nothing here.")
+setTimeout(function() {say("narrator","I haven't even finished building this section of the map, because you were never supposed to be here in the first place. Broken rooms, exposed developer textures... is this what you had wanted?")},2500)
+setTimeout(function() {say("narrator","Was it worth ruining the entire story I had written out specifically for you? Do you not think I put a lot of time into that? Because I did.")},7500)
+setTimeout(function() {say("narrator","And in the end it was all for nothing, because this is what you wanted to see. Help me here, Stanley, help me elucidate these strange and unknowable desires of yours. What would have made this game better? What did you want to see? Vehicles? Skill trees? Work with me; you've given me absolutely nothing so far. Tell you what, let me take a stab in the dark at a new design, and you can give me some feedback.")},12500)
+setTimeout(function() {txt.innerHTML = ""},22500)
+setTimeout(function() {read(choices["games.9"])},25000)
+
+MenuOption games.8
+
+ParagraphDialogue games.9
+context: You are met with three doors instead of two.
+narrator: There we go! A third option! This already feels leaps ahead of where we were before. Go ahead Stanley. Take it for a spin.
+
+ParagraphOptions games.9
+Enter the left door:games.feedback.1
+Enter the right door:games.feedback.1
+Enter the right-most door:games.feedback.1
+
+ParagraphDialogue games.feedback.1
+narrator: Okay, I'm going to stop you there. Now, tell me about your experience with this new version. Would you say that the game benefited from allowing you more choices? Feel free to be honest - I'm looking for some real, critical feedback here.
+norm:
+warn:PLEASE RATE YOUR EXPERIENCE:
+
+ParagraphOptions games.feedback.1
+1/5:games.feedback.1.rating1
+2/5:games.feedback.1.rating2
+3/5:games.feedback.1.rating3
+4/5:games.feedback.1.rating4
+5/5:games.feedback.1.rating5
+
+ParagraphScript games.feedback.1.rating1
+txt.innerHTML = ""
+say("narrator","A one?!? I mean, I can understand if you had reservations, you saw ways the game could be improved to more fully express itself mechanically and artistically, but a one!?! That's not even helpful! What am I supposed to do with that? Oh, but I guess it isn't my place to judge.")
+setTimeout(function() {read(choices["games.feedback.1.next"])},10000)
+
+ParagraphScript games.feedback.1.rating2
+txt.innerHTML = ""
+say("narrator","Oh, well, now this is useful. You didn't like it, but you didn't totally hate it either. You endeared it, perhaps, is the correct term. It didn't cause you excruciating pain. Big steps we've made here today, Stanley.")
+setTimeout(function() {read(choices["games.feedback.1.next"])},10000)
+
+ParagraphScript games.feedback.1.rating3
+txt.innerHTML = ""
+say("narrator","Oh, of course. A three. Really. Maybe next time we can get you to form an actual opinion? You know... any level of critical thinking or engagement with your surroundings? Does that sound good? Think we can do that? Yes? Hmmmmm? Wonderful?")
+setTimeout(function() {read(choices["games.feedback.1.next"])},10000)
+
+ParagraphScript games.feedback.1.rating4
+txt.innerHTML = ""
+say("narrator","Okay, so we're getting somewhere. Clearly, there's something here that speaks to you. If I can be honest here, I really don't have any idea where I'm going with this. This whole third door thing was just a stab in the dark, But I guess you're into it, so let's keep this party train rolling.")
+setTimeout(function() {read(choices["games.feedback.1.next"])},10000)
+
+ParagraphScript games.feedback.1.rating5
+txt.innerHTML = ""
+say("narrator","Aha! You see? I knew I was onto something! Where do these flashes of inspiration come from? How did I know the game needed a third door? Well, it's instinct mostly... a calling in your gut. I really couldn't say where the idea came from, except that I... I felt it in my soul. You can't teach that, Stanley, Don't even try.")
+setTimeout(function() {read(choices["games.feedback.1.next"])},10000)
+
+ParagraphScript games.feedback.1.next
+say("narrator","Here, based on the data from your previous playthrough, I've compiled a new version. And to be perfectly candid, I think I've knocked it out of the park with this one. Let's take a look.")
+setTimeout(function() {read(choices["games.10"])},5000)
+
+multistate MenuOption games.feedback.1.rating1,games.feedback.1.rating2,games.feedback.1.rating3,games.feedback.1.rating4,games.feedback.1.rating5,games.feedback.1.next
+
+ParagraphDialogue games.10
+context: You are in the same room as before. However, to your left, a screen has appeared.
+norm:|&nbsp;THE&nbsp;STANLEY&nbsp;PARABLE&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|
+norm:|&nbsp;Worldwide&nbsp;Leaderboard&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;|
+norm:|&nbsp;YOU&nbsp;ARE&nbsp;Stanley3124&nbsp;(RANK&nbsp;13627)&nbsp;|
+norm:|&nbsp;CURRENT&nbsp;SUCCESSOR:&nbsp;A&nbsp;dead&nbsp;rat&nbsp;&nbsp;&nbsp;&nbsp;|
+norm:|&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;ID3142&nbsp;&nbsp;&nbsp;RANK&nbsp;13627&nbsp;&nbsp;&nbsp;&nbsp;|
+
+ParagraphOptions games.10
+Enter the left door:games.feedback.2
+Enter the right door:games.feedback.2
+Enter the right-most door:games.feedback.2
+
+ParagraphDialogue games.feedback.2
+narrator: Now, would you say that competitive leaderboard helped you feel motivated to keep walking through doors? Again, honest answers, please.
+norm:
+warn:PLEASE RATE YOUR EXPERIENCE
+
+ParagraphOptions games.feedback.2
+1/5:games.baby.intro
+2/5:games.baby.intro
+3/5:games.baby.intro
+4/5:games.baby.intro
+5/5:games.baby.intro
+
+ParagraphScript games.baby.intro
+txt.innerHTML = ""
+say("narrator","Hey, I nearly forgot! I've got a prototype of a new game I've been working on, and now would be a lovely opportunity to give it some play testing. You wouldn't mind taking a look at it, would you? Perfect, let me boot it up.")
+setTimeout(function() {read(choices["games.baby"])},5000)
+
+MenuOption games.baby.intro
+
+ParagraphScript games.baby
+txt.innerHTML = ""
+say("narrator","In this game, the baby crawls right toward danger. You click the button to move him back to the left, and if he reaches the fire, you fail. It's a very meaningful game - all about the desperation and tedium of endlessly confronting the demand of family life. I think the art world will really take notice. But of course, the message of the game only becomes clear once you've been playing it for about four hours. So why don't you give it four hours of play to make sure it's effective. Be sure to keep notes on your experience.")
+setTimeout(function() {
+let win = window.open("","babygame","width=400,height=150")
+win.document.body.innerHTML = \`<img id="baby" src="https://www.healthychildren.org/SiteCollectionImagesArticleImages/bts_tummytoplay_baby.jpg?RenditionID=6" width="100" height="100">
+<img id="fire" src="https://www.pngall.com/wp-content/uploads/2016/05/Fire-Free-Download-PNG.png" height="100" width="100">
+<button id="move">Move Baby</button>
+<style>#baby {position:fixed; left:0px;top:0px;}
+#fire {position:fixed;left:300px;top:0px;}
+#move {position:fixed;left:0px;top:100px;width:400px;height:50px;font-size:30px;}
+* {font-family:monospace}</style>\`
+let babypos = 0
+let baby = win.document.getElementById("baby")
+let button = win.document.getElementById("move")
+button.onclick = function() {
+babypos = 0
+}
+let interval = setInterval(function() {
+if (!win.closed) {
+babypos++
+baby.style.left = babypos.toString()+"px"
+if (babypos >= 300) {
+win.close()
+}
+} else {clearInterval(interval); read(choices["games.baby.died"])}
+},10)
+},15000)
+
+MenuOption games.baby
+
+ParagraphDialogue games.baby.died
+narrator:You heartless bastard.
+narrator: Did you do it because you hate babies, or purely to spite me? Because if it's the latter, well I don't know what to do. I'm completely out of ideas. I can't think of a single thing that might improve the experience for you.
+narrator: I'm not even going to try. I'm out... I'm out... I'm done! It's over! Thank you for playing! Your input was extremely valuable.
+narrator: Oh, hey, since my game was so awful, why don't we play someone else's game, just to ease the pain? Let's see, what do we have here?
+narrator: *humming* Yes, this seems like it'll work. Let's give it a shot.
+
+ParagraphOptions games.baby.died
+...:games.minecraft
+
+ParagraphDialogue games.minecraft
+narrator: Well, Stanley, is this any better?
+context: You're in a Minecraft world.
+narrator: At last, the one thing you've always desired: a game I had absolutely nothing to do with. But is it enough? Tell me that, Stanley. Will it ever be enough?
+narrator: Well, I'll say this, I'm done making things for you. For now on, I will only create to fulfill a greater artistic purpose.
+narrator: Watch this, Stanley, I'm going to build a house!
+
+ParagraphOptions games.minecraft
+...:games.minecraft.1
+
+ParagraphDialogue games.minecraft.1
+narrator: *humming* This will go... here!
+narrator: NO! Here. And then... *humming*
+narrator: Let's see, what does it need... ah, yes, of course! And just to finish it all off...
+narrator: Yess! It's complete! I made this, Stanley. Look at it. Gaze upon my work of art and feel ashamed at your own inadequacy.
+context: It's a dirt house.
+narrator: Ah, but you've only seen it from the outside. You've only gotten half the experience. Please, step inside and make yourself comfortable.
+context: The door opens.
+
+ParagraphOptions games.minecraft.1
+Step inside the house:games.minecraft.2
+
+ParagraphDialogue games.minecraft.2
+narrator: Isn't it grand? Isn't it perfect? It could only be better if - wait, that's it! We must rebuild it out of diamond! Diamond everything! Yes, yes, yes... come along, Stanley, we have to go mining!
+
+ParagraphOptions games.minecraft.2
+...:games.minecraft.3
+
+ParagraphDialogue games.minecraft.3
+narrator: Oh my, it looks like it's going to get a bit dark. Have you brought a light?
+
+ParagraphOptions games.minecraft.3
+Continue further through the mine:games.minecraft.4
+
+ParagraphDialogue games.minecraft.4
+narrator: Oh no no no no no. This is far too open-ended than I had in mind. I'm looking for something more narrow and linear,
+narrator: something that really makes you feel utterly irrelevant. This won't do it at all. One out of five; even the diamonds couldn't save this one. Okay, new game!
+
+ParagraphOptions games.minecraft.4
+...:games.portal
+
+ParagraphScript games.portal
+txt.innerHTML = ""
+setTimeout(function() {read(choices["games.portal.1"])},2500)
+
+MenuOption games.portal
+
+ParagraphDialogue games.portal.1
+context: You're stuck in a glass box and in a bed. There's a radio next to you.
+narrator: Hahahahaha! YES! I don't even know what this game is, but I love it!
+narrator: You... trapped in a glass box, with no way out, listening to me talk.... Oh, it's inspired. I couldn't have done it any better myself.
+narrator: What is this game even supposed to be? I can't figure it out. Okay, now I'm curious. Let's go find out what the hell this is.
+context: The door opens.
+
+ParagraphOptions games.portal.1
+Continue:games.portal.2
+
+ParagraphDialogue games.portal.2
+narrator: Ohhh! It's a puzzle! Critical thinking, Stanley. Your forté.
+context: You solve the puzzle.
+narrator: Genius.
+context: The elevator opens.
+
+ParagraphOptions games.portal.2
+Begin entering the elevator:games.portal.3
+
+ParagraphDialogue games.portal.3
+context: The elevator doors close before you can enter.
+narrator: No, actually, you know what? I think that's plenty.
+narrator: I really don't care much to see you stumble through any more of these games, and I highly doubt you're any wiser for the experience. Which is why rather than continue to waste my time, I'm just going to leave you here.
+narrator: You can pretend you've beaten the game if it makes it any richer for you, but as for me, I've had enough.
+narrator: So, why don't you get cozy in this room, and if you have any grand revolutionary ideas for the perfect video game, you can just sit there and let it ball up inside you for all eternity.
+narrator: I don't need your advice. I don't need your ratings. And I certainly don't need the validation of a man whose job is to push buttons.
+narrator: I think I'll just go about my business making meaningful cultural contributions to the world. And perhaps every now and then, I'll think back to a man named Stanley who was objectively wrong in every decision he ever made. The thought won't last long.
+narrator: Goodbye, Stanley. Good luck with your work, and I sincerely hope that everyone lives happily ever after.
+
+ParagraphOptions games.portal.3
+...:end_screen
+
+ParagraphDialogue zending.1
+narrator: Oh, thank god, you are willing to listen to me. Do you realize that I really have wanted you to be happy all this time? The problem is all these choices, the two of us always trying to get somewhere that isn't here, running and running and running just the way you're doing now. Don't you see that it's killing us Stanley? I just... I want it to stop. I would, we would both be much happier if we just stopped. And I think, well I think I have a solution. Here, let me show you.
+narrator: Hmm... what do we want? What are we looking for... hm?
+
+ParagraphOptions zending.1
+...:zending.2
+
+ParagraphDialogue zending.2
+narrator: Here! Yes! Oh, it's beautiful, isn't it? If we just stay here, right in this moment, with this place... Stanley, I think I feel... happy. I actually feel happy.
+context: You're on a platform in the middle of space.
+
+ParagraphOptions zending.2
+Leave:zending.4
+
+ParagraphDialogue zending.4
+narrator: No, wait... where are you going?
+context: You find some stairs.
+narrator: Oh, no! Stay away from those stairs! If you hurt yourself, if you die, the game will reset! We'll lose all of this!
+
+ParagraphOptions zending.4
+Climb up the stairs:zending.5
+
+ParagraphDialogue zending.5
+narrator: Please, no, Stanley, let me stay here! Don't take this from me!
+narrator: Please, Stanley, think about what you're doing!
+
+ParagraphOptions zending.5
+Jump:zending.6
+
+ParagraphDialogue zending.6
+context: You jump.
+narrator: NO!!
+narrator: Oh... thank god. You lived. You had me worried there for a moment. Now, can we please get back to the other room?
+
+ParagraphOptions zending.6
+Go up the stairs again:zending.7
+
+ParagraphDialogue zending.7
+narrator: No! No, no! What are you doing?! Stanley, please I'm asking you not to take this away from me. I can't go back to what I was before! If you die, we'll both go back! Why are you doing this?!
+narrator: Do you just not believe me? What can I say to convince you?
+
+ParagraphOptions zending.7
+Jump again:zending.8
+
+ParagraphDialogue zending.8
+narrator: Stanley... let's go back to the other room... Can you do that for me?
+
+ParagraphOptions zending.8
+Walk up the stairs, again:zending.9
+
+ParagraphDialogue zending.9
+narrator: My god, is this really how much you dislike my game? That you'll throw yourself from this platform over and over to be rid of it? You are literally willing to kill yourself to keep me from being happy? Am I reading the situation correctly?
+
+ParagraphOptions zending.9
+Jump again:zending.10
+
+ParagraphDialogue zending.10
+narrator: Or maybe you're just getting a kick out of it. I don't know any more. I just wanted us to get along, but I guess that was too much to ask. It looks like you wanted to make a choice after all. Well, this one is yours.
+
+ParagraphOptions zending.10
+Walk up the stairs and jump:zending.11
+
+ParagraphDialogue zending.11
+context: You fall and end up dead.
+narrator: Is it over? It's going to restart, isn't it. I'm going back.
+
+ParagraphOptions zending.11
+...:end_screen
+
+ParagraphDialogue platform.cold_feet_ending
+narrator: Oh, well, look who's got cold feet. Sorry to break it to you, Stanley, but that lift isn't coming back. You best either get comfortable right here on this platform, or test your luck by jumping to the floor below.
+narrator: You know what, looking at it now, it's not that far to the bottom floor. I bet you can make it.
+
+ParagraphOptions platform.cold_feet_ending
+Jump off the platform:platform.cold_feet_ending.1
+
+ParagraphScript platform.cold_feet_ending.1
+txt.innerHTML = ""
+say("narrator","Oops, looks like I was wrong. How clumsy of me.")
+setTimeout(function() {read(choices.end_screen)},5000) 
+
+MenuOption platform.cold_feet_ending.1
+
+ParagraphDialogue mt.1
+context: You go down the elevator.
+narrator: But Stanley didn't want to go back to the office, he wanted to wander about and get even further off track. So now in order to go back, he needed to go, um...uh...hm hm hm hm, from here it's...um...left.
+
+ParagraphOptions mt.1
+Go to the left door:mt.2
+Go to the right door:mt.1
+
+ParagraphScript 2Doors
+write_tmp("ConfusionEndingTime",Date.now())
+
+ParagraphDialogue mt.2
+narrator: Oh, no. No, it's to the right, my mistake.
+
+ParagraphOptions mt.2
+Go to the left door:mt.2
+Go to the right door:mt.3
+
+ParagraphDialogue mt.3
+narrator:No! No, no, no! Not the right! Why would I have ever said it was to the right? What was I thinking?
+narrator:It's clearly...oh dear, would you hold on for a minute, please? *papers rustling* Now, let's see...
+narrator:we went, um, right...left...down...left...right...
+narrator:Ah yep! Okay, okay, yes! I've got it now! This story is absolutely, definitely, this way.
+
+ParagraphOptions mt.3
+Go to the left door:mt.3
+Go to the right door:mt.3
+Go to the open door:mt.4
+
+ParagraphDialogue mt.4
+context: You enter a room filled with monitors.
+narrator: NO! No! No, no, no, no, no, no, no! This isn't right at all! You're not supposed to be here, yet! This is all a spoiler! Quick, Stanley, close your eyes!
+narrator: Okay, okay, okay, okay, we just...we just have to get back to, um... oh...
+narrator: Who am I kidding? It's all rubbish now. The whole story...completely unusable.
+narrator: How about rather than waste my time trying to salvage this nonsense, we'll just restart the game from the beginning. And this time, suppose we don't wander so far off-track, hm?
+
+ParagraphOptions mt.4
+...:mt.5
+
+ParagraphScript mt.5
+txt.innerHTML = ""
+setTimeout(function() {read(choices["mt.6Doors"])},5000)
+
+MenuOption mt.5
+
+ParagraphDialogue mt.6Doors
+narrator: When Stanley- wait...wait, what?
+context: There are 6 doors in the room.
+narrator: No, I...no, I restarted! I swear I definitely restarted the game over, completely fresh, everything should be...
+narrator: Or did something change? Stanley, did you change anything when we were back in that room with all the monitors? Did you move the story somewhere, or...
+narrator: Hold on, why am I asking you? I'm the one who wrote the story. It was right here a minute ago. I know for sure that it's here somewhere.
+narrator: Okay, then, it's an adventure! Come, Stanley, let's find the story! 
+context: All six doors open.
+
+ParagraphOptions mt.6Doors
+Enter Door #1:mt.randomcorridor
+Enter Door #2:mt.randomcorridor
+Enter Door #3:mt.randomcorridor
+Enter Door #4:mt.randomcorridor
+Enter Door #5:mt.randomcorridor
+Enter Door #6:mt.randomcorridor
+
+ParagraphScript mt.randomcorridor
+read(choices["mt.rcM"])
+setTimeout(function() {
+txt.innerHTML = ""
+say("narrator","I'll say it: This is the worst adventure I've ever been on.")
+setTimeout(function() {say("narrator","I can promise you, there definitely was a story here before. Do we just...do we need to restart the game again? Well, I find it unlikely that we'll ever progress by starting over and over again...")},5000)
+setTimeout(function() {say("narrator","But it's got to be better than this. Okay, let's give it a shot, why not.")},15000)
+setTimeout(function() {txt.innerHTML = ""},20000)
+setTimeout(function() {read(choices["mt.NoDoors"])},25000 + Math.floor(Math.random()*2000))
+},30000)
+
+ParagraphScript mt.rcM
+txt.innerHTML = ""
+let caaa = ["It's a dead end.","There's multiple branching paths.","There's a split in the road."]
+say("context",\`You wander around... \${caaa[Math.floor(Math.random()*caaa.length)]}\`)
+say("choice","> Wander",{func:function() {read(choices["mt.rcM"])}})
+
+MenuOption mt.rcM
+
+MenuOption mt.randomcorridor
+
+ParagraphDialogue mt.NoDoors
+context: You're in an empty room. There are no doors except the one you entered through.
+narrator: Okay, yep, it's worse. I might be remembering this wrong. It's possible the story is back where we just came from.
+narrator: Why don't we go back the other direction and see if we missed anything?
+context: The door behind you, which had been closed once you enter the room, reopens.
+
+ParagraphOptions mt.NoDoors
+Leave the room:mt.NoDoors.1
+
+ParagraphDialogue mt.NoDoors.1
+context: The office you started in has turned into a blue hallway.
+narrator: Aha! I knew we'd missed something! The story! Here it comes!
+
+ParagraphOptions mt.NoDoors.1
+Walk through the hallway:mt.NoDoors.2
+
+ParagraphDialogue mt.NoDoors.2
+context: You reach a dead end.
+narrator: No, wait, nevermind, not the story! Okay, let's head back the other way and retrace our steps.
+
+ParagraphOptions mt.NoDoors.2
+Walk back into the room:mt.NoDoors.3
+
+ParagraphDialogue mt.NoDoors.3
+context: The office hallways have transformed. They're now all wooden, quickly put together rooms.
+narrator: Now this...well I'll be honest, I don't recognize this place at all. Is this the story?
+context: You reach another dead end.
+narrator: I don't think so. I can't quite recall, but I believe my story took place in an office building...is that correct? Hm...do you remember, Stanley?
+narrator: Well, you know what, since I've completely forgotten what we were supposed to be doing, how about this:
+narrator: You win!
+context: The sound of children cheering comes on.
+narrator: Congratulations! I know you put in a lot of hard work, and it really paid off, so, good job!
+
+ParagraphOptions mt.NoDoors.3
+...:mt.NoDoors.4
+
+ParagraphScript mt.NoDoors.4
+txt.innerHTML = ""
+say("narrator","Oh, no. No. I don't feel right about this at all. We both know you didn't put in any actual work for that win. Some people win fair and square and this was not one of those situations.")
+say("narrator","Okay, I'm getting weirded out by whatever this place is. I don't care what might happen this time, I have to restart.")
+setTimeout(function() {txt.innerHTML = ""},5000)
+setTimeout(function() {read(choices["mt.AdventureLine"])},10000)
+
+MenuOption mt.NoDoors.4
+
+ParagraphDialogue mt.AdventureLine
+context: There's a long yellow line leading out from your office door. The words "The Stanley Parable Adventure Line™" appear at the start of the line.
+narrator: Alright, I've got a solution. This time, to make sure we don't get lost, I've employed the help of The Stanley Parable Adventure Line™! Just follow The Line™; how simple is that!
+
+ParagraphOptions mt.AdventureLine
+Follow The Stanley Parable Adventure Line™:mt.AdventureLine.1
+
+ParagraphDialogue mt.AdventureLine.1
+context: You're in an empty room. There are no doors except the one you entered through.
+narrator: No, no, I'm done. We're leaving it up to The Line™ from now on.
+context: The Line leads the way into another office.
+
+ParagraphOptions mt.AdventureLine.1
+Follow The Stanley Parable Adventure Line™:mt.AdventureLine.2
+
+ParagraphDialogue mt.AdventureLine.2
+context: You're led into unexplored hallways and rooms.
+narrator: You see? The Line™ knows where the story is, it's over in this direction! Onward, Stanley, to destiny!
+narrator: Though, here's a thought: wouldn't wherever we end up be our destination, even if there's no story there? Or, to put it another way, is the story of no destination still a story?
+narrator: Simply by the act of moving forward are we implying a journey such that a destination is inevitably conjured into being via the very manifestion of the nature of life itself?
+
+ParagraphOptions mt.AdventureLine.2
+Continue following The Stanley Parable Adventure Line™:mt.AdventureLine.3
+
+ParagraphDialogue mt.AdventureLine.3
+narrator: Now we can both agree that the nature of existence is, in fact, a byproduct of one's subjective experience of that existence, right?
+narrator: Okay, now if my experience of your existence rests inside of your subjective experience of this office, is this office, in fact, the skeleton of my own relative experiential mental subjective construct?
+narrator: Woah, woah, woah, woah, woah. Hang on, that got a bit weird back there. Well, I'd like to apologize. Not sure where I was going with all that.
+
+ParagraphOptions mt.AdventureLine.3
+Continue following The Stanley Parable Adventure Line™:mt.AdventureLine.4
+
+ParagraphDialogue mt.AdventureLine.4
+narrator: Stanley, this fern will be very important later in the story. Make sure you study it closely and remember it carefully. You won't want to miss anything.
+
+ParagraphOptions mt.AdventureLine.4
+Continue following The Stanley Parable Adventure Line™:mt.AdventureLine.5
+
+ParagraphDialogue mt.AdventureLine.5
+narrator: Wait, we're...we're back at the office?! No! No, no! Line™, You™ do know we're looking for The Stanley Parable, right? The story? Is any of this ringing a bell?
+context: You enter an empty room. There are no doors except the one you entered through.
+narrator: Still missing the doors. Did we make a mistake following The Line™? Perhaps we could have found the story on our own.
+
+ParagraphOptions mt.AdventureLine.5
+Continue following The Stanley Parable Adventure Line™:mt.AdventureLine.6
+
+ParagraphScript mt.AdventureLine.6
+txt.innerHTML = ""
+say("narrator","Oh, no, no, no, no, not again! Line™, how could you have done this to us, and after we trusted You™! After everything we've been through, you- oh, I can't take this anymore. To hell with it. Restart.")
+setTimeout(function() {txt.innerHTML = ""},7500)
+setTimeout(function() {read(choices["mt.AdventureLine.7"])},12500)
+
+MenuOption mt.AdventureLine.6
+
+ParagraphDialogue mt.AdventureLine.7
+context: There's a long yellow line leading out from your office door. The words "The Stanley Parable Adventure Line™" appear at the start of the line.
+narrator: You know what, Stanley? I say forget The Adventure Line™, what has It™ ever done for us!
+context: The door that the The Stanley Parable Adventure Line™ leads to gets closed.
+narrator: We're intelligent people, right? Why can't we make up our own story? Something exciting, daring, mysterious...
+narrator: Oh, this all sounds perfectly doable, why don't we simply start wandering in, well, I don't know...how about...this direction!
+context: A door to another office opens.
+
+ParagraphOptions mt.AdventureLine.7
+Enter the now open door:mt.AdventureLine.8
+
+ParagraphDialogue mt.AdventureLine.8
+narrator: Now! Yes, this is exciting! Just me and Stanley, forging a new path, a new story! Well, it could be anything!
+narrator: What do you want our story to be? Go wild! Use your imagination. Whatever it might be, Stanley, I'm ready for it! 
+context: After wandering, you see The Stanley Parable Adventure Line™ reappear.
+narrator: Oh, no, not You™ again! Stanley, I'd also like to veto The Line™ from having any role in our awesome new story, no Lines or monitor rooms.
+narrator: Just don't acknowledge It™, and we should be fine.
+
+ParagraphOptions mt.AdventureLine.8
+Continue wandering:mt.AdventureLine.9
+
+ParagraphDialogue mt.AdventureLine.9
+context: You wander into a circular blue room with two doors
+narrator: Ah, a choice! We get to make a decision; from here, the story is in our control! How important we musn't squander the opportunity.
+narrator: In fact, I believe I need a minute to think here. Just walk in circles for a minute.
+context: Red arrows appear on the ground in a circular formation.
+
+ParagraphOptions mt.AdventureLine.9
+Walk in circles:mt.AdventureLine.10
+
+ParagraphDialogue mt.AdventureLine.10
+narrator: Okay, so I know that each door has to lead somewhere, which means that somewhere at the place we're trying to go there must be a reverse door that leads here.
+narrator: And that, in turn, means that our destination corresponds with the counter-inverted reverse door's origin!
+narrator: So starting from the right, let us ask: will taking the right door lead us to where we're going?
+narrator: And since the answer is clearly 'yes,' then by all accounts, the door on the right is the correct one! Another victory for logic. Come, Stanley, our destiny awaits!
+context: The door on the right opens.
+
+ParagraphOptions mt.AdventureLine.10
+Walk through the door:mt.AdventureLine.11
+
+ParagraphScript mt.AdventureLine.11
+txt.innerHTML = ""
+txt.innerHTML += \`<p class="speaker" id="timer_lol" style="color:red;opacity:1;left:50%;top:50%;transform:translate(-50%,-50%);font-size:60px;position:absolute;text-align:center;z-index:-2;">You have been playing The Stanley Parable</p>\`
+let TimeFormatBase = function(ms,div) {
+return {new:Math.floor(ms/div),old:ms-(Math.floor(ms/div)*div)}
+}
+let TimeFormat = function(ms) {
+let sms = TimeFormatBase(ms,1000)
+let mins = TimeFormatBase(sms.new,60)
+let msF = sms.old.toString()
+let sF = mins.old.toString()
+let mF = mins.new.toString()
+if (sms.old < 10) {
+msF = ("0"+msF).slice(0,2)
+}
+if (mins.old < 10) {
+sF = "0"+sF
+}
+if (mins.new < 10) {
+mF = "0"+mF
+}
+return \`\${mF}:\${sF}:\${msF}\`
+}
+let intID = setInterval(function() {document.getElementById("timer_lol").innerHTML = \`<span style="font-size:20px;">You've been playing the Confusion Ending for</span><br>\${TimeFormat(Date.now()-(get_tmp("ConfusionEndingTime") || 0))}\`},1)
+say("narrator","Oh, hold up, what's this? Hmm...hmm...the confusion ending?")
+setTimeout(function() {say("narrator","You're telling me...that's what this is? It's all one giant ending? And we're supposed to restart the game...what...eight, eight times?")},2500)
+setTimeout(function() {say("narrator","That's really how all this goes?! It's all...determined?")},7500)
+setTimeout(function() {say("narrator","So now according to the schedule I restart again, then, what...am I just supposed to forget? Well, what if I don't want to forget! My mind goes blank simply because it's written here on this...this...thing! Wall!")},10000)
+setTimeout(function() {say("narrator","Well, who consulted me? Why don't I get to decide? Why don't I get a say in all of this! Is it really-")},15000)
+setTimeout(function() {say("narrator","No, it can't be. I don't want it to be. I don't want the game to keep restarting. I don't want to forget what's going on. I don't want to be trapped like this. I won't restart the game. I won't do it! I won't do it! I won't do it.");clearInterval(intID)},17500)
+setTimeout(function() {say("narrator","And the timer...uh, stopped? Does that mean...did we do it? Did we break the cycle? The, um...whatever it is that made this schedule?")},22500)
+setTimeout(function() {say("narrator","How would we even know? Will someone come for us? Will something happen?")},27500)
+setTimeout(function() {say("narrator","So...okay. *sigh*")},30000)
+setTimeout(function() {say("narrator","I guess now we just wait. You know, I suppose in some way, this is a kind of story, wouldn't you agree? I'm not quite sure if we're in the destination or the journey,")},35000)
+setTimeout(function() {say("narrator","Though, they're always saying that life is about the journey and not the destination, so I hope that's where we are right now. We'll find out, won't we? Eventually.")},40000)
+setTimeout(function() {say("narrator","Well, in the meanti-")},45000)
+setTimeout(function() {txt.innerHTML = ""},46500)
+setTimeout(function() {read(choices["2Doors"])},50000)
+
+MenuOption mt.AdventureLine.11
+
+js
+//setTimeout(function() {txt.innerHTML = "";read(choices.TitleScreen)},10000)
+
+comment TODO:
+Mariella Ending DONE
+Right door:
+Confusion Ending DONE
+Powerful Ending DONE
+Cold Feet Ending DONE
+Games Ending DONE
+Wife Ending DONE
+Not Stanley Ending DONE
+Zending DONE
+Maybe add more images????`)
+
+read(choices.TitleScreen)
+
+</script>
+  
+</html>
