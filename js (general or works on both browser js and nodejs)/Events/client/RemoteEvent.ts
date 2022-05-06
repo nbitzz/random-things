@@ -12,7 +12,7 @@ export class RemoteEvent extends ev.BaseEvent {
         this.handler = new ws.WsHandleClient(this.url)
 
         this.handler.message.then((...a:any[]) => {
-            this.Recieve()
+            this.Recieve(Array.from(arguments))
         })
     }
     Fire(...a:any[]) {
