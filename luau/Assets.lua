@@ -30,6 +30,7 @@ function Assets:Get(url)
     else
         self.AssetList[url] = Assets.download(url)
         self:save()
+        return self:Get(url)
     end
 end
 
@@ -57,6 +58,6 @@ function Assets.download(url)
 
     local ext = Assets.roughMimeToExt(asset.Headers["Content-Type"] or asset.Headers["content-type"])
     writefile(string.format("%s%.%s",guid,ext),asset.Body)
-    Assets.Logger(string.format("Downloaded %s%.%s (%sB)",guid,ext,asset.Body:len()))
+    Assets.Logger(string.format("Downloaded %s (%sB)",url,asset.Body:len()))
     return string.format("%s%.%s",guid,ext)
 end
