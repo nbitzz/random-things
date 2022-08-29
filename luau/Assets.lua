@@ -22,6 +22,8 @@ function Assets.new(callsign)
     else
         assets.AssetList = {}
     end
+
+    return assets
 end
 
 function Assets:Get(url)
