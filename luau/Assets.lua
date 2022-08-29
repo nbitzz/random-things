@@ -61,3 +61,5 @@ function Assets.download(url)
     Assets.Logger(string.format("Downloaded %s (%sB)",url,asset.Body:len()))
     return string.format("%s%.%s",guid,ext)
 end
+
+return Assets
