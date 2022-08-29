@@ -59,9 +59,9 @@ function Assets.download(url)
     local asset = Assets.request({Url=url,Method="GET"})
 
     local ext = Assets.roughMimeToExt(asset.Headers["Content-Type"] or asset.Headers["content-type"])
-    writefile(string.format("%s%.%s",guid,ext),asset.Body)
+    writefile(string.format("%s\\.%s",guid,ext),asset.Body)
     Assets.Logger(string.format("Downloaded %s (%sB)",url,asset.Body:len()))
-    return string.format("%s%.%s",guid,ext)
+    return string.format("%s\\.%s",guid,ext)
 end
 
 return Assets
