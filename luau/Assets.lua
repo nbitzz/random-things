@@ -23,21 +23,19 @@ function Assets.new(callsign)
         assets.AssetList = {}
     end
 
-    setmetatable(assets,{
+    return setmetatable(assets,{
         __index = function(tab,ind)
             if (ind == "length") then
                 local amt = 0
 
                 for x,v in pairs(tab) do
-                    amt += v and 1 or 0
+                    amt += (v and 1 or 0)
                 end
 
                 return amt
             end
         end
     })
-
-    return assets
 end
 
 function Assets:Get(url)
