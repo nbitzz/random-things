@@ -28,7 +28,7 @@ function Assets.new(callsign)
             if (ind == "length") then
                 local amt = 0
 
-                for x,v in pairs(tab) do
+                for x,v in pairs(tab.AssetList) do
                     amt += (v and 1 or 0)
                 end
 
