@@ -36,12 +36,28 @@ function Assets:Get(url)
     end
 end
 
+function Assets:Remove(url)
+    if (self.AssetList[url]) then
+        delfile(self.AssetList[url])
+        self.AssetList[url] = nil
+        self:save()
+    end
+end
+
 function Assets:save()
     writefile(self.pointer,game:GetService("HttpService"):JSONEncode(self.AssetList))
 end
 
 function Assets:update()
     self.AssetList = game:GetService("HttpService"):JSONDecode(readfile(self.pointer))
+end
+
+function Assets:wipe()
+    for x,v in pairs(self.AssetList) do
+        delfile(v)
+    end
+    self.AssetList = {}
+    self:save()
 end
 
 function Assets.roughMimeToExt(mime)
